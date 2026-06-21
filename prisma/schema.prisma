@@ -28,7 +28,7 @@ model User {
 }
 
 model Movie {
-  id        Int    @id @default(autoincrement())
+  id        Int    @id @default(autoincremental())
   title     String
   genre     String
   img       String
