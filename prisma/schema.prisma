@@ -28,7 +28,7 @@ model User {
 }
 
 model Movie {
-  id        Int    @id @default(autoincremental())
+  id        Int    @id @default(autoincrement())
   title     String
   genre     String
   img       String
@@ -38,7 +38,7 @@ model Movie {
 }
 
 model Promo {
-  id   Int    @id @default(autoincremental())
+  id   Int    @id @default(autoincrement())
   img  String
   link String @default("#")
 }
