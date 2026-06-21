@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  username        String   @unique
+  password        String
+  email           String   @unique
+  phone           String   @default("")
+  balance         Float    @default(0)
+  withdrawPassword String  @default("")
+  role            String   @default("user")
+  status          String   @default("active")
+  inviteCode      String   @default("")
+  lastActive      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  withdrawAccounts WithdrawAccount[]
+  transactions     Transaction[]
+  upgradeRequests  UpgradeRequest[]
+}
+
+model Movie {
+  id        Int    @id @default(autoincrement())
+  title     String
+  genre     String
+  img       String
+  type      String @default("popular")
+  rating    String @default("9.0")
+  link      String @default("")
+}
+
+model Promo {
+  id   Int    @id @default(autoincrement())
+  img  String
+  link String @default("#")
+}
+
+model Event {
+  id        String @id @default(cuid())
+  title     String
+  aktivasi  String
+  img       String
+}
+
+model WithdrawAccount {
+  id            String @id @default(cuid())
+  userId        String
+  cardType      String
+  bankOwner     String
+  phone         String
+  bankName      String
+  accountNumber String
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // credit or debit
+  amount      Float
+  description String
+  date        DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model UpgradeRequest {
+  id        String   @id @default(cuid())
+  userId    String
+  eventId   String
+  action    String   // Production, Director, Producer, Screenplay
+  amount    Float
+  status    String   @default("pending") // pending, approved, rejected
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+}

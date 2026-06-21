@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useEffect, useCallback, useRef } from 'react';
+     4→import { useToast } from '@/hooks/use-toast';
+     5→
+     6→// ==================== TYPES ====================
+     7→interface User {
+     8→  id: string;
+     9→  username: string;
+    10→  email: string;
+    11→  phone: string;
+    12→  balance: number;
+    13→  role: string;
+    14→  status: string;
+    15→  withdrawPassword: string;
+    16→  inviteCode: string;
+    17→  createdAt: string;
+    18→}
+    19→
+    20→interface Movie {
+    21→  id: number;
+    22→  title: string;
+    23→  genre: string;
+    24→  img: string;
+    25→  type: string;
+    26→  rating: string;
+    27→  link: string;
+    28→}
+    29→
+    30→interface Promo {
+    31→  id: number;
+    32→  img: string;
+    33→  link: string;
+    34→}
+    35→
+    36→interface EventItem {
+    37→  id: string;
+    38→  title: string;
+    39→  aktivasi: string;
+    40→  img: string;
+    41→}
+    42→
+    43→interface Transaction {
+    44→  id: string;
+    45→  userId: string;
+    46→  type: string;
+    47→  amount: number;
+    48→  description: string;
+    49→  date: string;
+    50→}
+    51→
+    52→interface WithdrawAccount {
+    53→  id: string;
+    54→  userId: string;
+    55→  cardType: string;
+    56→  bankOwner: string;
+    57→  phone: string;
+    58→  bankName: string;
+    59→  accountNumber: string;
+    60→}
+    61→
+    62→interface UpgradeRequest {
+    63→  id: string;
+    64→  userId: string;
+    65→  eventId: string;
+    66→  action: string;
+    67→  amount: number;
+    68→  status: string;
+    69→  createdAt: string;
+    70→  user?: User;
+    71→}
+    72→
+    73→interface MemberUser {
+    74→  id: string;
+    75→  username: string;
+    76→  email: string;
+    77→  phone: string;
+    78→  balance: number;
+    79→  role: string;
+    80→  status: string;
+    81→  withdrawPassword: string;
+    82→  inviteCode: string;
+    83→  lastActive: string;
+    84→  createdAt: string;
+    85→  updatedAt: string;
+    86→  withdrawAccounts: Array<{
+    87→    id: string;
+    88→    cardType: string;
+    89→    bankOwner: string;
+    90→    bankName: string;
+    91→    accountNumber: string;
+    92→    phone: string;
+    93→  }>;
+    94→}
+    95→
+    96→interface MemberListData {
+    97→  users: MemberUser[];
+    98→  total: number;
+    99→  page: number;
+   100→  totalPages: number;
+   101→}
+   102→
+   103→type Screen = 'auth' | 'dashboard' | 'promosi' | 'event' | 'event-detail' | 'upgrade' | 'upgrade-pending' | 'admin' | 'member-detail' | 'profile' | 'profile-detail' | 'withdraw-account' | 'add-withdraw' | 'asset' | 'deposit' | 'list' | 'withdraw-money' | 'history';
+   104→
+   105→// ==================== CONSTANTS ====================
+   106→const CENSORED_NAMES = ['Ahmad Pratama', 'Muhammad Ramadhan', 'Dwi Nugroho', 'Budi Wijaya', 'Andi Hidayat', 'Rina Putri', 'Siti Rahma', 'Dewi Anggraini', 'Putri Maharani', 'Sri Kartika', 'Fajar Saputro', 'Yoga Wibowo', 'Aditya Firmansyah', 'Rizki Akbar', 'Indah Sari', 'Citra Dewanti', 'Anisa Putri', 'Bagus Setiawan', 'Reza Kurniawan', 'Farhan Putra', 'Intan Maharani', 'Vina Kusuma', 'Galih Saputra', 'Taufik Nugroho', 'Luthfi Syahputra', 'Nabila Aulia', 'Hana Putri', 'Hafiz Ghifari', 'Revan Prasetyo', 'Gilang Saputra', 'Fikri Hidayatullah', 'Zidan Nugroho', 'Alif Hakim', 'Kevin Prakoso', 'Arief Nugraha'];
+   107→const UNCENSORED_NAMES = ['Tengku fahmisyahputra', 'Abdullah alfandy', 'Rivaldi ardian', 'Isdanu Prayuda', 'Muhammad Aldi Widiansyah', 'Hena Enaw', 'Melvin Halim Purba', 'Bintang Ismail Ginting', 'Fadly Pasyah Ramadhan', 'Alif Maliki', 'Hendi Dermawan', 'Sapto Hadi Lubis', 'Anto Bonsai'];
+   108→const ALL_NAMES = [...CENSORED_NAMES, ...UNCENSORED_NAMES];
+   109→const SOURCE_LIST = ['MAX RIDE', 'SCREEN APP', 'HEMAT BACK', 'TEMEN BARUNEMA', 'CINEMA XXI', 'LATER CASHBACK', 'LALIWA STUDIO', 'MADJOE BERSAMA', 'ACEX GROUP', 'GOTO COMPAN', 'BINTANG GROUP', 'SASA CINEMA', 'MARLON TV', 'LITERASI TV', 'KAMI PRODUKSI'];
+   110→
+   111→// ==================== HELPERS ====================
+   112→function censorName(name: string): string {
+   113→  const chars = name.split('');
+   114→  const letterIndices: number[] = [];
+   115→  for (let i = 0; i < chars.length; i++) {
+   116→    if (chars[i] !== ' ') letterIndices.push(i);
+   117→  }
+   118→  const numAsterisks = Math.random() < 0.5 ? 4 : 5;
+   119→  if (letterIndices.length <= numAsterisks) return name;
+   120→  // Shuffle
+   121→  for (let i = letterIndices.length - 1; i > 0; i--) {
+   122→    const j = Math.floor(Math.random() * (i + 1));
+   123→    [letterIndices[i], letterIndices[j]] = [letterIndices[j], letterIndices[i]];
+   124→  }
+   125→  const selected = letterIndices.slice(0, numAsterisks);
+   126→  for (const idx of selected) chars[idx] = '*';
+   127→  return chars.join('');
+   128→}
+   129→
+   130→function getRandomItem<T>(arr: T[]): T {
+   131→  return arr[Math.floor(Math.random() * arr.length)];
+   132→}
+   133→
+   134→function getRandomName(): string {
+   135→  const name = getRandomItem(ALL_NAMES);
+   136→  if (CENSORED_NAMES.includes(name)) return censorName(name);
+   137→  return name;
+   138→}
+   139→
+   140→function getRandomAmount(): string {
+   141→  const num = Math.floor(Math.random() * (900000000 - 100000 + 1)) + 100000;
+   142→  return 'Rp ' + num.toLocaleString('id-ID');
+   143→}
+   144→
+   145→function formatBalance(n: number): string {
+   146→  return n.toLocaleString('id-ID');
+   147→}
+   148→
+   149→function formatDate(iso: string): string {
+   150→  const d = new Date(iso);
+   151→  return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+   152→}
+   153→
+   154→function formatTimeAgo(dateStr: string): string {
+   155→  const now = new Date();
+   156→  const lastActive = new Date(dateStr);
+   157→  const diffMs = now.getTime() - lastActive.getTime();
+   158→  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+   159→  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+   160→  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+   161→
+   162→  if (diffMinutes < 1) return 'Baru saja';
+   163→  if (diffMinutes < 60) return `${diffMinutes} menit yang lalu`;
+   164→  if (diffHours < 24) return `${diffHours} jam yang lalu`;
+   165→  return `${diffDays} hari yang lalu`;
+   166→}
+   167→
+   168→function isOnline(dateStr: string): boolean {
+   169→  const now = new Date();
+   170→  const lastActive = new Date(dateStr);
+   171→  const diffMinutes = Math.floor((now.getTime() - lastActive.getTime()) / (1000 * 60));
+   172→  return diffMinutes < 5;
+   173→}
+   174→
+   175→// ==================== MAIN COMPONENT ====================
+   176→export default function MilesApp() {
+   177→  const { toast } = useToast();
+   178→  
+   179→  // Auth state - initialize from localStorage if available
+   180→  const [token, setTokenState] = useState<string | null>(null);
+   181→  const [currentUser, setCurrentUser] = useState<User | null>(null);
+   182→
+   183→  // Screen state
+   184→  const [screen, setScreen] = useState<Screen>('auth');
+   185→  const [prevScreen, setPrevScreen] = useState<Screen>('auth');
+   186→
+   187→  // Set token and persist to localStorage
+   188→  const setToken = (newToken: string | null) => {
+   189→    setTokenState(newToken);
+   190→    if (newToken) {
+   191→      try { localStorage.setItem('milesapp_token', newToken); } catch { /* ignore */ }
+   192→    } else {
+   193→      try { localStorage.removeItem('milesapp_token'); } catch { /* ignore */ }
+   194→    }
+   195→  };
+   196→
+   197→  // Restore token from localStorage on mount
+   198→  useEffect(() => {
+   199→    try {
+   200→      const savedToken = localStorage.getItem('milesapp_token');
+   201→      if (savedToken) {
+   202→        setTokenState(savedToken);
+   203→        // Verify token and fetch user profile
+   204→        try {
+   205→          const decoded = JSON.parse(atob(savedToken));
+   206→          fetch(`/api/profile?userId=${decoded.id}`)
+   207→            .then(res => res.json())
+   208→            .then(data => {
+   209→              if (data.user) {
+   210→                setCurrentUser(data.user);
+   211→                setScreen('dashboard');
+   212→              } else {
+   213→                // Token invalid, clear it
+   214→                localStorage.removeItem('milesapp_token');
+   215→                setTokenState(null);
+   216→              }
+   217→            })
+   218→            .catch(() => {
+   219→              localStorage.removeItem('milesapp_token');
+   220→              setTokenState(null);
+   221→            });
+   222→        } catch {
+   223→          localStorage.removeItem('milesapp_token');
+   224→          setTokenState(null);
+   225→        }
+   226→      }
+   227→    } catch { /* ignore */ }
+   228→  }, []);
+   229→  
+   230→  // Auth form state
+   231→  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+   232→  const [loading, setLoading] = useState<string | null>(null);
+   233→  
+   234→  // Auth form refs (uncontrolled inputs for maximum compatibility)
+   235→  const loginUsernameRef = useRef<HTMLInputElement>(null);
+   236→  const loginPasswordRef = useRef<HTMLInputElement>(null);
+   237→  const regInviteRef = useRef<HTMLInputElement>(null);
+   238→  const regUsernameRef = useRef<HTMLInputElement>(null);
+   239→  const regEmailRef = useRef<HTMLInputElement>(null);
+   240→  const regPhoneRef = useRef<HTMLInputElement>(null);
+   241→  const regPasswordRef = useRef<HTMLInputElement>(null);
+   242→  const regConfirmRef = useRef<HTMLInputElement>(null);
+   243→  const regWithdrawRef = useRef<HTMLInputElement>(null);
+   244→
+   245→  // Invite code state (synced with admin Kode button)
+   246→  const [regInviteCode, setRegInviteCode] = useState('');
+   247→  
+   248→  // Data state
+   249→  const [movies, setMovies] = useState<Movie[]>([]);
+   250→  const [promos, setPromos] = useState<Promo[]>([]);
+   251→  const [events, setEvents] = useState<EventItem[]>([]);
+   252→  const [transactions, setTransactions] = useState<Transaction[]>([]);
+   253→  const [withdrawAccounts, setWithdrawAccounts] = useState<WithdrawAccount[]>([]);
+   254→  const [adminUsers, setAdminUsers] = useState<MemberUser[]>([]);
+   255→  const [pendingUpgrades, setPendingUpgrades] = useState<UpgradeRequest[]>([]);
+   256→  
+   257→  // Member list state
+   258→  const [memberSearch, setMemberSearch] = useState('');
+   259→  const [memberSearchTrigger, setMemberSearchTrigger] = useState(0);
+   260→  const [memberPage, setMemberPage] = useState(1);
+   261→  const [memberTotalPages, setMemberTotalPages] = useState(1);
+   262→  const [memberTotal, setMemberTotal] = useState(0);
+   263→  const [selectedMember, setSelectedMember] = useState<MemberUser | null>(null);
+   264→  const [editForm, setEditForm] = useState({ username: '', password: '', email: '', phone: '', bankOwner: '', accountNumber: '', cardType: '' });
+   265→  
+   266→  // Admin registration form (inline)
+   267→  const [showRegForm, setShowRegForm] = useState(false);
+   268→  const [regForm, setRegForm] = useState({ username: '', email: '', phone: '', password: '' });
+   269→  const [loadingReg, setLoadingReg] = useState(false);
+   270→  
+   271→  // Admin kode input (manual)
+   272→  const [showKodeInput, setShowKodeInput] = useState(false);
+   273→  
+   274→  // Active invite code from DB
+   275→  const [activeInviteCode, setActiveInviteCode] = useState('');
+   276→  const [isInviteCodeActive, setIsInviteCodeActive] = useState(false);
+   277→  const [loadingKode, setLoadingKode] = useState(false);
+   278→  
+   279→  // Deposit/Withdraw modal state
+   280→  const [showDepositModal, setShowDepositModal] = useState(false);
+   281→  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+   282→  const [dwForm, setDwForm] = useState({ username: '', rekeningName: '', rekeningNumber: '', amount: '' });
+   283→  
+   284→  // Admin invite code state (local input, synced to DB on save)
+   285→  const [adminInviteCode, setAdminInviteCode] = useState('');
+   286→
+   287→  // Event detail state
+   288→  const [selectedEvent, setSelectedEvent] = useState<EventItem | null>(null);
+   289→  const [selectedAction, setSelectedAction] = useState<string>('');
+   290→  const [shadowCoinInput, setShadowCoinInput] = useState<string>('');
+   291→  const [countdown, setCountdown] = useState<number | null>(null);
+   292→  const [upgradeRequestId, setUpgradeRequestId] = useState<string | null>(null);
+   293→  const [rewardList, setRewardList] = useState<Array<{ name: string; source: string; amount: string }>>([]);
+   294→  
+   295→  // Profile detail
+   296→  const [profileDetailTitle, setProfileDetailTitle] = useState('');
+   297→  
+   298→  // Add withdraw form
+   299→  const [addWithdrawForm, setAddWithdrawForm] = useState({
+   300→    cardType: 'WISE', bankOwner: '', phone: '', bankName: '', accountNumber: ''
+   301→  });
+   302→  
+   303→  // Withdraw money
+   304→  const [withdrawAmount, setWithdrawAmount] = useState('');
+   305→  
+   306→  // Deposit form
+   307→  const [depositAmount, setDepositAmount] = useState('');
+   308→  const [depositMethod, setDepositMethod] = useState('bank');
+   309→  const [showBankDest, setShowBankDest] = useState(false);
+   310→  
+   311→  // Bank destination (admin-managed)
+   312→  const [showRekeningForm, setShowRekeningForm] = useState(false);
+   313→  const [bankDestList, setBankDestList] = useState<Array<{ id: string; bankName: string; accountNumber: string; bankType: string }>>([]);
+   314→  const [rekeningForm, setRekeningForm] = useState({ bankName: '', accountNumber: '', bankType: 'BCA' });
+   315→  const [loadingRekening, setLoadingRekening] = useState(false);
+   316→  
+   317→  // Beranda settings (trailer video URL + link + title + image)
+   318→  const [trailerVideoUrl, setTrailerVideoUrl] = useState('');
+   319→  const [trailerLink, setTrailerLink] = useState('');
+   320→  const [trailerTitle, setTrailerTitle] = useState('');
+   321→  const [trailerImage, setTrailerImage] = useState('');
+   322→
+   323→  // Admin movie management
+   324→  const [showMovieManager, setShowMovieManager] = useState(false);
+   325→  const [movieForm, setMovieForm] = useState({ title: '', genre: '', rating: '9.0', link: '', img: '' });
+   326→  const [loadingMovie, setLoadingMovie] = useState(false);
+   327→  const [editingMovieId, setEditingMovieId] = useState<number | null>(null);
+   328→
+   329→  // Full profile (Akun Saya) - includes password for complete display
+   330→  const [fullProfile, setFullProfile] = useState<{ username: string; email: string; phone: string; password: string; balance: number; role: string; status: string; inviteCode: string; createdAt: string } | null>(null);
+   331→  const [loadingProfile, setLoadingProfile] = useState(false);
+   332→  
+   333→  // Refs
+   334→  const countdownRef = useRef<NodeJS.Timeout | null>(null);
+   335→  const rewardListRef = useRef<NodeJS.Timeout | null>(null);
+   336→  const memberSearchRef = useRef<NodeJS.Timeout | null>(null);
+   337→
+   338→  // ==================== API HELPERS ====================
+   339→  const apiCall = useCallback(async (url: string, options?: RequestInit) => {
+   340→    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+   341→    if (token) headers['Authorization'] = `Bearer ${token}`;
+   342→    const res = await fetch(url, { ...options, headers: { ...headers, ...options?.headers } });
+   343→    const data = await res.json();
+   344→    if (!res.ok) throw new Error(data.error || 'Terjadi kesalahan');
+   345→    return data;
+   346→  }, [token]);
+   347→
+   348→  const fetchProfile = useCallback(async () => {
+   349→    if (!token) return;
+   350→    try {
+   351→      const decoded = JSON.parse(atob(token));
+   352→      const data = await apiCall(`/api/profile?userId=${decoded.id}`);
+   353→      setCurrentUser(data.user);
+   354→    } catch {
+   355→      // ignore
+   356→    }
+   357→  }, [token, apiCall]);
+   358→
+   359→  // Load full profile (includes password) for "Akun Saya" detail view
+   360→  const loadFullProfile = useCallback(async () => {
+   361→    if (!token || !currentUser) return;
+   362→    setLoadingProfile(true);
+   363→    try {
+   364→      const data = await apiCall(`/api/profile/full?userId=${currentUser.id}`);
+   365→      setFullProfile(data.user);
+   366→    } catch (err: unknown) {
+   367→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   368→    } finally {
+   369→      setLoadingProfile(false);
+   370→    }
+   371→  }, [token, currentUser, apiCall, toast]);
+   372→
+   373→  // ==================== SCREEN NAVIGATION ====================
+   374→  const navigate = useCallback((newScreen: Screen) => {
+   375→    setPrevScreen(screen);
+   376→    setScreen(newScreen);
+   377→  }, [screen]);
+   378→
+   379→  // ==================== AUTH HANDLERS ====================
+   380→  const handleLogin = async () => {
+   381→    const username = loginUsernameRef.current?.value?.trim() || '';
+   382→    const password = loginPasswordRef.current?.value || '';
+   383→    if (!username || !password) {
+   384→      toast({ title: 'Error', description: 'Harap isi semua data!', variant: 'destructive' });
+   385→      return;
+   386→    }
+   387→    setLoading('login');
+   388→    try {
+   389→      const data = await apiCall('/api/auth/login', {
+   390→        method: 'POST',
+   391→        body: JSON.stringify({ username, password })
+   392→      });
+   393→      setToken(data.token);
+   394→      setCurrentUser(data.user);
+   395→      toast({ title: 'Berhasil', description: 'Login berhasil!' });
+   396→      navigate('dashboard');
+   397→    } catch (err: unknown) {
+   398→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   399→    } finally {
+   400→      setLoading(null);
+   401→    }
+   402→  };
+   403→
+   404→  const handleRegister = async () => {
+   405→    const d = {
+   406→      inviteCode: regInviteCode,
+   407→      username: regUsernameRef.current?.value?.trim() || '',
+   408→      email: regEmailRef.current?.value?.trim() || '',
+   409→      phone: regPhoneRef.current?.value?.trim() || '',
+   410→      password: regPasswordRef.current?.value || '',
+   411→      confirmPassword: regConfirmRef.current?.value || ''
+   412→    };
+   413→    if (!d.username || !d.password || !d.email) {
+   414→      toast({ title: 'Error', description: 'Data wajib tidak lengkap!', variant: 'destructive' });
+   415→      return;
+   416→    }
+   417→    if (!d.inviteCode || d.inviteCode.trim() === '') {
+   418→      toast({ title: 'Error', description: 'Kode undangan wajib diisi!', variant: 'destructive' });
+   419→      return;
+   420→    }
+   421→    if (d.password !== d.confirmPassword) {
+   422→      toast({ title: 'Error', description: 'Kata sandi tidak cocok!', variant: 'destructive' });
+   423→      return;
+   424→    }
+   425→    if (d.password.length < 6) {
+   426→      toast({ title: 'Error', description: 'Kata sandi minimal 6 karakter!', variant: 'destructive' });
+   427→      return;
+   428→    }
+   429→    setLoading('register');
+   430→    try {
+   431→      await apiCall('/api/auth/register', {
+   432→        method: 'POST',
+   433→        body: JSON.stringify(d)
+   434→      });
+   435→      toast({ title: 'Berhasil', description: 'Pendaftaran berhasil! Silakan masuk.' });
+   436→      setAuthTab('login');
+   437→      // Pre-fill the login username
+   438→      if (loginUsernameRef.current) loginUsernameRef.current.value = d.username;
+   439→    } catch (err: unknown) {
+   440→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   441→    } finally {
+   442→      setLoading(null);
+   443→    }
+   444→  };
+   445→
+   446→  const handleLogout = () => {
+   447→    setToken(null);
+   448→    setCurrentUser(null);
+   449→    navigate('auth');
+   450→    toast({ title: 'Info', description: 'Berhasil logout' });
+   451→  };
+   452→
+   453→  // ==================== DATA LOADERS ====================
+   454→  const loadMovies = async () => {
+   455→    try {
+   456→      const data = await apiCall('/api/movies');
+   457→      setMovies(data.movies || []);
+   458→    } catch { /* ignore */ }
+   459→  };
+   460→
+   461→  const loadPromos = async () => {
+   462→    try {
+   463→      const data = await apiCall('/api/promos');
+   464→      setPromos(data.promos || []);
+   465→    } catch { /* ignore */ }
+   466→  };
+   467→
+   468→  const loadEvents = async () => {
+   469→    try {
+   470→      const data = await apiCall('/api/events');
+   471→      setEvents(data.events || []);
+   472→    } catch { /* ignore */ }
+   473→  };
+   474→
+   475→  const loadTransactions = async () => {
+   476→    if (!token) return;
+   477→    try {
+   478→      const decoded = JSON.parse(atob(token));
+   479→      const data = await apiCall(`/api/transactions?userId=${decoded.id}`);
+   480→      setTransactions(data.transactions || []);
+   481→    } catch { /* ignore */ }
+   482→  };
+   483→
+   484→  const loadWithdrawAccounts = async () => {
+   485→    if (!token) return;
+   486→    try {
+   487→      const decoded = JSON.parse(atob(token));
+   488→      const data = await apiCall(`/api/withdraw-accounts?userId=${decoded.id}`);
+   489→      setWithdrawAccounts(data.accounts || []);
+   490→    } catch { /* ignore */ }
+   491→  };
+   492→
+   493→  const loadAdminUsers = useCallback(async (search?: string, page?: number) => {
+   494→    try {
+   495→      const s = search !== undefined ? search : memberSearch;
+   496→      const p = page !== undefined ? page : memberPage;
+   497→      const data = await apiCall(`/api/users?search=${encodeURIComponent(s)}&page=${p}&limit=10`);
+   498→      setAdminUsers(data.users || []);
+   499→      setMemberTotalPages(data.totalPages || 1);
+   500→      setMemberTotal(data.total || 0);
+   501→    } catch { /* ignore */ }
+   502→  }, [memberSearch, memberPage, apiCall]);
+   503→
+   504→  const loadPendingUpgrades = async () => {
+   505→    try {
+   506→      const data = await apiCall('/api/upgrade');
+   507→      setPendingUpgrades(data.requests || []);
+   508→    } catch { /* ignore */ }
+   509→  };
+   510→
+   511→  // Load active invite code from DB
+   512→  const loadActiveInviteCode = useCallback(async () => {
+   513→    try {
+   514→      const res = await fetch('/api/settings/invite-code');
+   515→      const data = await res.json();
+   516→      setActiveInviteCode(data.code || '');
+   517→      setIsInviteCodeActive(data.isActive || false);
+   518→      setAdminInviteCode(data.code || '');
+   519→    } catch { /* ignore */ }
+   520→  }, []);
+   521→
+   522→  // Save invite code to DB
+   523→  const handleSaveInviteCode = useCallback(async () => {
+   524→    setLoadingKode(true);
+   525→    try {
+   526→      const code = adminInviteCode.trim();
+   527→      if (!code) {
+   528→        toast({ title: 'Error', description: 'Masukkan kode undangan terlebih dahulu!', variant: 'destructive' });
+   529→        setLoadingKode(false);
+   530→        return;
+   531→      }
+   532→      await apiCall('/api/settings/invite-code', {
+   533→        method: 'PUT',
+   534→        body: JSON.stringify({ code, isActive: true })
+   535→      });
+   536→      setActiveInviteCode(code);
+   537→      setIsInviteCodeActive(true);
+   538→      toast({ title: 'Berhasil', description: `Kode undangan "${code}" diaktifkan!` });
+   539→    } catch (err: unknown) {
+   540→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   541→    } finally {
+   542→      setLoadingKode(false);
+   543→    }
+   544→  }, [adminInviteCode, apiCall, toast]);
+   545→
+   546→  // Deactivate invite code
+   547→  const handleDeactivateInviteCode = useCallback(async () => {
+   548→    setLoadingKode(true);
+   549→    try {
+   550→      const code = adminInviteCode.trim();
+   551→      await apiCall('/api/settings/invite-code', {
+   552→        method: 'PUT',
+   553→        body: JSON.stringify({ code, isActive: false })
+   554→      });
+   555→      setIsInviteCodeActive(false);
+   556→      toast({ title: 'Info', description: 'Kode undangan dinonaktifkan' });
+   557→    } catch (err: unknown) {
+   558→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   559→    } finally {
+   560→      setLoadingKode(false);
+   561→    }
+   562→  }, [adminInviteCode, apiCall, toast]);
+   563→
+   564→  // Load bank destination list from DB (public)
+   565→  const loadBankDestinations = useCallback(async () => {
+   566→    try {
+   567→      const res = await fetch('/api/settings/bank-destination');
+   568→      const data = await res.json();
+   569→      setBankDestList(data.banks || []);
+   570→    } catch { /* ignore */ }
+   571→  }, []);
+   572→
+   573→  // Save bank destination (admin)
+   574→  const handleSaveRekening = useCallback(async () => {
+   575→    const { bankName, accountNumber, bankType } = rekeningForm;
+   576→    if (!bankName || !accountNumber || !bankType) {
+   577→      toast({ title: 'Error', description: 'Harap isi semua data!', variant: 'destructive' });
+   578→      return;
+   579→    }
+   580→    setLoadingRekening(true);
+   581→    try {
+   582→      await apiCall('/api/settings/bank-destination', {
+   583→        method: 'PUT',
+   584→        body: JSON.stringify({ bankName, accountNumber, bankType })
+   585→      });
+   586→      toast({ title: 'Berhasil', description: 'Bank tujuan berhasil disimpan!' });
+   587→      setRekeningForm({ bankName: '', accountNumber: '', bankType: 'BCA' });
+   588→      loadBankDestinations();
+   589→    } catch (err: unknown) {
+   590→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   591→    } finally {
+   592→      setLoadingRekening(false);
+   593→    }
+   594→  }, [rekeningForm, apiCall, toast, loadBankDestinations]);
+   595→
+   596→  // Delete bank destination (admin)
+   597→  const handleDeleteRekening = useCallback(async (id: string) => {
+   598→    try {
+   599→      await apiCall(`/api/settings/bank-destination?id=${id}`, {
+   600→        method: 'DELETE'
+   601→      });
+   602→      toast({ title: 'Berhasil', description: 'Bank tujuan berhasil dihapus!' });
+   603→      loadBankDestinations();
+   604→    } catch (err: unknown) {
+   605→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   606→    }
+   607→  }, [apiCall, toast, loadBankDestinations]);
+   608→
+   609→  // Load beranda settings (trailer video URL + link + title + image)
+   610→  const loadBerandaSettings = useCallback(async () => {
+   611→    try {
+   612→      const res = await fetch('/api/settings/beranda');
+   613→      const data = await res.json();
+   614→      setTrailerVideoUrl(data.trailerVideoUrl || '');
+   615→      setTrailerLink(data.trailerLink || '');
+   616→      setTrailerTitle(data.trailerTitle || '');
+   617→      setTrailerImage(data.trailerImage || '');
+   618→    } catch { /* ignore */ }
+   619→  }, []);
+   620→
+   621→  // Save trailer settings (admin) - saves video URL, link, title, and image
+   622→  const handleSaveTrailerUrl = useCallback(async () => {
+   623→    setLoadingMovie(true);
+   624→    try {
+   625→      await apiCall('/api/settings/beranda', {
+   626→        method: 'PUT',
+   627→        body: JSON.stringify({ trailerVideoUrl, trailerLink, trailerTitle, trailerImage })
+   628→      });
+   629→      toast({ title: 'Berhasil', description: 'Pengaturan trailer berhasil disimpan!' });
+   630→    } catch (err: unknown) {
+   631→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   632→    } finally {
+   633→      setLoadingMovie(false);
+   634→    }
+   635→  }, [trailerVideoUrl, trailerLink, trailerTitle, trailerImage, apiCall, toast]);
+   636→
+   637→  // Save movie link (admin)
+   638→  const handleSaveMovieEdit = useCallback(async (movieId: number, data: { title?: string; genre?: string; rating?: string; link?: string; img?: string }) => {
+   639→    setLoadingMovie(true);
+   640→    try {
+   641→      await apiCall('/api/admin/movies', {
+   642→        method: 'PUT',
+   643→        body: JSON.stringify({ id: movieId, ...data })
+   644→      });
+   645→      toast({ title: 'Berhasil', description: 'Film berhasil diperbarui!' });
+   646→      loadMovies();
+   647→      setEditingMovieId(null);
+   648→    } catch (err: unknown) {
+   649→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   650→    } finally {
+   651→      setLoadingMovie(false);
+   652→    }
+   653→  }, [apiCall, toast, loadMovies]);
+   654→
+   655→  // Add new movie (admin)
+   656→  const handleAddMovie = useCallback(async () => {
+   657→    const { title, genre, rating, link, img } = movieForm;
+   658→    if (!title || !genre) {
+   659→      toast({ title: 'Error', description: 'Title dan genre wajib diisi!', variant: 'destructive' });
+   660→      return;
+   661→    }
+   662→    setLoadingMovie(true);
+   663→    try {
+   664→      await apiCall('/api/admin/movies', {
+   665→        method: 'POST',
+   666→        body: JSON.stringify({ title, genre, rating, link, img: img && img.trim() !== '' ? img.trim() : `movie_${Date.now()}` })
+   667→      });
+   668→      toast({ title: 'Berhasil', description: 'Film berhasil ditambahkan!' });
+   669→      setMovieForm({ title: '', genre: '', rating: '9.0', link: '', img: '' });
+   670→      loadMovies();
+   671→    } catch (err: unknown) {
+   672→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   673→    } finally {
+   674→      setLoadingMovie(false);
+   675→    }
+   676→  }, [movieForm, apiCall, toast, loadMovies]);
+   677→
+   678→  // Delete movie (admin)
+   679→  const handleDeleteMovie = useCallback(async (movieId: number) => {
+   680→    try {
+   681→      await apiCall(`/api/admin/movies?id=${movieId}`, {
+   682→        method: 'DELETE'
+   683→      });
+   684→      toast({ title: 'Berhasil', description: 'Film berhasil dihapus!' });
+   685→      loadMovies();
+   686→    } catch (err: unknown) {
+   687→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   688→    }
+   689→  }, [apiCall, toast, loadMovies]);
+   690→
+   691→  // ==================== HEARTBEAT ====================
+   692→  useEffect(() => {
+   693→    if (!token) return;
+   694→    const interval = setInterval(async () => {
+   695→      try {
+   696→        const decoded = JSON.parse(atob(token));
+   697→        await fetch('/api/auth/heartbeat', {
+   698→          method: 'POST',
+   699→          headers: { 'Content-Type': 'application/json' },
+   700→          body: JSON.stringify({ userId: decoded.id })
+   701→        });
+   702→      } catch { /* ignore */ }
+   703→    }, 120000); // every 2 minutes
+   704→    return () => clearInterval(interval);
+   705→  }, [token]);
+   706→
+   707→  // ==================== EVENT ACTION HANDLERS ====================
+   708→  const handleEventAction = (actionName: string) => {
+   709→    setSelectedAction(actionName);
+   710→    setShadowCoinInput('');
+   711→    // Generate initial reward list
+   712→    const initial = [];
+   713→    for (let i = 0; i < 5; i++) {
+   714→      initial.push({ name: getRandomName(), source: getRandomItem(SOURCE_LIST), amount: getRandomAmount() });
+   715→    }
+   716→    setRewardList(initial);
+   717→  };
+   718→
+   719→  // Start reward list animation
+   720→  useEffect(() => {
+   721→    if (screen === 'event-detail' && selectedAction) {
+   722→      if (rewardListRef.current) clearInterval(rewardListRef.current);
+   723→      rewardListRef.current = setInterval(() => {
+   724→        setRewardList(prev => {
+   725→          const newRow = { name: getRandomName(), source: getRandomItem(SOURCE_LIST), amount: getRandomAmount() };
+   726→          const updated = [...prev, newRow];
+   727→          if (updated.length > 6) return updated.slice(-6);
+   728→          return updated;
+   729→        });
+   730→      }, 3000);
+   731→    }
+   732→    return () => {
+   733→      if (rewardListRef.current) clearInterval(rewardListRef.current);
+   734→    };
+   735→  }, [screen, selectedAction]);
+   736→
+   737→  // Countdown timer
+   738→  useEffect(() => {
+   739→    if (countdown !== null && countdown > 0) {
+   740→      countdownRef.current = setTimeout(() => {
+   741→        setCountdown(countdown - 1);
+   742→      }, 1000);
+   743→    } else if (countdown === 0) {
+   744→      // Countdown finished - navigate to upgrade screen
+   745→      setCountdown(null);
+   746→      navigate('upgrade');
+   747→    }
+   748→    return () => {
+   749→      if (countdownRef.current) clearTimeout(countdownRef.current);
+   750→    };
+   751→  }, [countdown, navigate]);
+   752→
+   753→  const handleUpgrade = async () => {
+   754→    const amount = parseFloat(shadowCoinInput);
+   755→    if (!amount || amount <= 0) {
+   756→      toast({ title: 'Error', description: 'Masukkan jumlah koin bayangan terlebih dahulu!', variant: 'destructive' });
+   757→      return;
+   758→    }
+   759→    if (countdown !== null) return; // already counting down
+   760→    
+   761→    try {
+   762→      // Create upgrade request
+   763→      const data = await apiCall('/api/upgrade', {
+   764→        method: 'POST',
+   765→        body: JSON.stringify({
+   766→          userId: currentUser?.id,
+   767→          eventId: selectedEvent?.id,
+   768→          action: selectedAction,
+   769→          amount
+   770→        })
+   771→      });
+   772→      setUpgradeRequestId(data.request.id);
+   773→      // Start 60 second countdown (changed from 30 to 60 as requested)
+   774→      setCountdown(60);
+   775→    } catch (err: unknown) {
+   776→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   777→    }
+   778→  };
+   779→
+   780→  const handleToggleStatus = async (userId: string) => {
+   781→    try {
+   782→      await apiCall(`/api/users/${userId}/toggle-status`, {
+   783→        method: 'POST'
+   784→      });
+   785→      toast({ title: 'Berhasil', description: 'Status berhasil diubah' });
+   786→      loadAdminUsers();
+   787→    } catch (err: unknown) {
+   788→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   789→    }
+   790→  };
+   791→
+   792→  const handleApproveUpgrade = async (id: string) => {
+   793→    try {
+   794→      await apiCall(`/api/upgrade/${id}/approve`, {
+   795→        method: 'POST',
+   796→        body: JSON.stringify({ adminId: currentUser?.id })
+   797→      });
+   798→      toast({ title: 'Berhasil', description: 'Permintaan peningkatan disetujui!' });
+   799→      loadPendingUpgrades();
+   800→      loadAdminUsers();
+   801→    } catch (err: unknown) {
+   802→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   803→    }
+   804→  };
+   805→
+   806→  const handleRejectUpgrade = async (id: string) => {
+   807→    try {
+   808→      await apiCall(`/api/upgrade/${id}/reject`, {
+   809→        method: 'POST',
+   810→        body: JSON.stringify({ adminId: currentUser?.id })
+   811→      });
+   812→      toast({ title: 'Berhasil', description: 'Permintaan peningkatan ditolak!' });
+   813→      loadPendingUpgrades();
+   814→    } catch (err: unknown) {
+   815→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   816→    }
+   817→  };
+   818→
+   819→  const handleAddWithdraw = async () => {
+   820→    const d = addWithdrawForm;
+   821→    if (!d.bankOwner || !d.phone || !d.bankName || !d.accountNumber) {
+   822→      toast({ title: 'Error', description: 'Harap isi semua data!', variant: 'destructive' });
+   823→      return;
+   824→    }
+   825→    setLoading('add-withdraw');
+   826→    try {
+   827→      await apiCall('/api/withdraw-accounts', {
+   828→        method: 'POST',
+   829→        body: JSON.stringify({ ...d, userId: currentUser?.id })
+   830→      });
+   831→      toast({ title: 'Berhasil', description: 'Berhasil menambahkan akun penarikan!' });
+   832→      setAddWithdrawForm({ cardType: 'WISE', bankOwner: '', phone: '', bankName: '', accountNumber: '' });
+   833→      navigate('withdraw-account');
+   834→    } catch (err: unknown) {
+   835→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   836→    } finally {
+   837→      setLoading(null);
+   838→    }
+   839→  };
+   840→
+   841→  // ==================== ADMIN REGISTER HANDLER ====================
+   842→  const handleAdminRegister = async () => {
+   843→    const { username, email, phone, password } = regForm;
+   844→    if (!username || !email || !phone || !password) {
+   845→      toast({ title: 'Error', description: 'Harap isi semua data!', variant: 'destructive' });
+   846→      return;
+   847→    }
+   848→    if (password.length < 6) {
+   849→      toast({ title: 'Error', description: 'Password minimal 6 karakter!', variant: 'destructive' });
+   850→      return;
+   851→    }
+   852→    setLoadingReg(true);
+   853→    try {
+   854→      await apiCall('/api/auth/register', {
+   855→        method: 'POST',
+   856→        body: JSON.stringify({ ...regForm, confirmPassword: password, inviteCode: adminInviteCode })
+   857→      });
+   858→      toast({ title: 'Berhasil', description: `Akun ${username} berhasil didaftarkan!` });
+   859→      setRegForm({ username: '', email: '', phone: '', password: '' });
+   860→      setShowRegForm(false);
+   861→      loadAdminUsers();
+   862→    } catch (err: unknown) {
+   863→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   864→    } finally {
+   865→      setLoadingReg(false);
+   866→    }
+   867→  };
+   868→
+   869→  const handleCopyUsername = (username: string) => {
+   870→    navigator.clipboard.writeText(username).then(() => {
+   871→      toast({ title: 'Tersalin', description: `Username "${username}" disalin!` });
+   872→    }).catch(() => {
+   873→      toast({ title: 'Info', description: username });
+   874→    });
+   875→  };
+   876→
+   877→  const handleWithdrawMoney = async () => {
+   878→    const amount = parseFloat(withdrawAmount);
+   879→    if (!amount) {
+   880→      toast({ title: 'Error', description: 'Harap isi jumlah penarikan!', variant: 'destructive' });
+   881→      return;
+   882→    }
+   883→    if (isNaN(amount) || amount < 10000) {
+   884→      toast({ title: 'Error', description: 'Minimal penarikan adalah Rp 10.000!', variant: 'destructive' });
+   885→      return;
+   886→    }
+   887→    setLoading('withdraw-money');
+   888→    try {
+   889→      await apiCall('/api/withdraw', {
+   890→        method: 'POST',
+   891→        body: JSON.stringify({ userId: currentUser?.id, amount })
+   892→      });
+   893→      toast({ title: 'Berhasil', description: 'Permintaan penarikan berhasil diproses!' });
+   894→      setWithdrawAmount('');
+   895→      fetchProfile();
+   896→      navigate('asset');
+   897→    } catch (err: unknown) {
+   898→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   899→    } finally {
+   900→      setLoading(null);
+   901→    }
+   902→  };
+   903→
+   904→  // ==================== MEMBER LIST HANDLERS ====================
+   905→  const handleMemberSearch = useCallback((value: string) => {
+   906→    setMemberSearch(value);
+   907→  }, []);
+   908→
+   909→  const handleSearchClick = useCallback(() => {
+   910→    setMemberPage(1);
+   911→    setMemberSearchTrigger(t => t + 1);
+   912→  }, []);
+   913→
+   914→  const handleSelectMember = async (userId: string) => {
+   915→    try {
+   916→      const data = await apiCall(`/api/users/${userId}`);
+   917→      const member = data.user as MemberUser;
+   918→      setSelectedMember(member);
+   919→      setEditForm({
+   920→        username: member.username || '',
+   921→        password: '',
+   922→        email: member.email || '',
+   923→        phone: member.phone || '',
+   924→        bankOwner: member.withdrawAccounts?.[0]?.bankOwner || '',
+   925→        accountNumber: member.withdrawAccounts?.[0]?.accountNumber || '',
+   926→        cardType: member.withdrawAccounts?.[0]?.cardType || '',
+   927→      });
+   928→      navigate('member-detail');
+   929→    } catch (err: unknown) {
+   930→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   931→    }
+   932→  };
+   933→
+   934→  const handleUpdateMember = async () => {
+   935→    if (!selectedMember) return;
+   936→    setLoading('update-member');
+   937→    try {
+   938→      const updateData: Record<string, string> = {};
+   939→      if (editForm.username) updateData.username = editForm.username;
+   940→      if (editForm.email) updateData.email = editForm.email;
+   941→      if (editForm.phone) updateData.phone = editForm.phone;
+   942→      if (editForm.password) updateData.password = editForm.password;
+   943→
+   944→      await apiCall(`/api/users/${selectedMember.id}`, {
+   945→        method: 'PUT',
+   946→        body: JSON.stringify(updateData)
+   947→      });
+   948→
+   949→      // Update withdraw account if exists
+   950→      if (selectedMember.withdrawAccounts?.[0]?.id) {
+   951→        const waId = selectedMember.withdrawAccounts[0].id;
+   952→        const waData: Record<string, string> = {};
+   953→        if (editForm.bankOwner) waData.bankOwner = editForm.bankOwner;
+   954→        if (editForm.accountNumber) waData.accountNumber = editForm.accountNumber;
+   955→        if (editForm.cardType) waData.cardType = editForm.cardType;
+   956→        if (Object.keys(waData).length > 0) {
+   957→          await apiCall(`/api/withdraw-accounts/${waId}`, {
+   958→            method: 'PUT',
+   959→            body: JSON.stringify(waData)
+   960→          });
+   961→        }
+   962→      }
+   963→
+   964→      toast({ title: 'Berhasil', description: 'Data member berhasil diperbarui!' });
+   965→      navigate('admin');
+   966→    } catch (err: unknown) {
+   967→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   968→    } finally {
+   969→      setLoading(null);
+   970→    }
+   971→  };
+   972→
+   973→  const handleDeleteUser = async (userId: string) => {
+   974→    if (!confirm('Apakah Anda yakin ingin menghapus akun ini? Tindakan ini tidak dapat dibatalkan.')) return;
+   975→    setLoading('delete-member');
+   976→    try {
+   977→      await apiCall(`/api/users/${userId}`, {
+   978→        method: 'DELETE'
+   979→      });
+   980→      toast({ title: 'Berhasil', description: 'Akun berhasil dihapus!' });
+   981→      navigate('admin');
+   982→    } catch (err: unknown) {
+   983→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+   984→    } finally {
+   985→      setLoading(null);
+   986→    }
+   987→  };
+   988→
+   989→  // ==================== ADMIN DEPOSIT/WITHDRAW HANDLERS ====================
+   990→  const handleAdminDeposit = async () => {
+   991→    if (!dwForm.username || !dwForm.amount) {
+   992→      toast({ title: 'Error', description: 'Harap isi username dan nominal saldo!', variant: 'destructive' });
+   993→      return;
+   994→    }
+   995→    const amount = parseFloat(dwForm.amount);
+   996→    if (isNaN(amount) || amount <= 0) {
+   997→      toast({ title: 'Error', description: 'Nominal saldo harus berupa angka positif!', variant: 'destructive' });
+   998→      return;
+   999→    }
+  1000→    setLoading('admin-deposit');
+  1001→    try {
+  1002→      const data = await apiCall('/api/admin/deposit', {
+  1003→        method: 'POST',
+  1004→        body: JSON.stringify({ username: dwForm.username, amount })
+  1005→      });
+  1006→      toast({ title: 'Berhasil', description: data.message });
+  1007→      setShowDepositModal(false);
+  1008→      setDwForm({ username: '', rekeningName: '', rekeningNumber: '', amount: '' });
+  1009→      loadAdminUsers();
+  1010→    } catch (err: unknown) {
+  1011→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+  1012→    } finally {
+  1013→      setLoading(null);
+  1014→    }
+  1015→  };
+  1016→
+  1017→  const handleAdminWithdraw = async () => {
+  1018→    if (!dwForm.username || !dwForm.amount) {
+  1019→      toast({ title: 'Error', description: 'Harap isi username dan nominal saldo!', variant: 'destructive' });
+  1020→      return;
+  1021→    }
+  1022→    const amount = parseFloat(dwForm.amount);
+  1023→    if (isNaN(amount) || amount <= 0) {
+  1024→      toast({ title: 'Error', description: 'Nominal saldo harus berupa angka positif!', variant: 'destructive' });
+  1025→      return;
+  1026→    }
+  1027→    setLoading('admin-withdraw');
+  1028→    try {
+  1029→      const data = await apiCall('/api/admin/withdraw', {
+  1030→        method: 'POST',
+  1031→        body: JSON.stringify({ username: dwForm.username, amount })
+  1032→      });
+  1033→      toast({ title: 'Berhasil', description: data.message });
+  1034→      setShowWithdrawModal(false);
+  1035→      setDwForm({ username: '', rekeningName: '', rekeningNumber: '', amount: '' });
+  1036→      loadAdminUsers();
+  1037→    } catch (err: unknown) {
+  1038→      toast({ title: 'Error', description: (err as Error).message, variant: 'destructive' });
+  1039→    } finally {
+  1040→      setLoading(null);
+  1041→    }
+  1042→  };
+  1043→
+  1044→  // Load data on screen change
+  1045→  useEffect(() => {
+  1046→    if (!token && screen !== 'auth') {
+  1047→      setScreen('auth');
+  1048→      return;
+  1049→    }
+  1050→    switch (screen) {
+  1051→      case 'dashboard':
+  1052→        loadMovies();
+  1053→        fetchProfile();
+  1054→        loadBerandaSettings();
+  1055→        break;
+  1056→      case 'promosi':
+  1057→        loadPromos();
+  1058→        break;
+  1059→      case 'event':
+  1060→        loadEvents();
+  1061→        if (countdownRef.current) clearTimeout(countdownRef.current);
+  1062→        if (rewardListRef.current) clearInterval(rewardListRef.current);
+  1063→        setCountdown(null);
+  1064→        setSelectedAction('');
+  1065→        break;
+  1066→      case 'admin':
+  1067→        loadAdminUsers();
+  1068→        loadPendingUpgrades();
+  1069→        loadActiveInviteCode();
+  1070→        loadBankDestinations();
+  1071→        loadBerandaSettings();
+  1072→        break;
+  1073→      case 'profile':
+  1074→        fetchProfile();
+  1075→        break;
+  1076→      case 'withdraw-account':
+  1077→        loadWithdrawAccounts();
+  1078→        break;
+  1079→      case 'asset':
+  1080→        fetchProfile();
+  1081→        break;
+  1082→      case 'history':
+  1083→        loadTransactions();
+  1084→        break;
+  1085→      case 'list':
+  1086→        loadPendingUpgrades();
+  1087→        fetchProfile();
+  1088→        break;
+  1089→      case 'deposit':
+  1090→        loadBankDestinations();
+  1091→        break;
+  1092→    }
+  1093→  }, [screen, token]);
+  1094→
+  1095→  // Reload admin users when page changes or search is triggered explicitly
+  1096→  useEffect(() => {
+  1097→    if (screen === 'admin' && token) {
+  1098→      loadAdminUsers();
+  1099→    }
+  1100→  }, [memberPage, memberSearchTrigger, screen, token, loadAdminUsers]);
+  1101→
+  1102→  // Auto-refresh profile periodically when on dashboard
+  1103→  useEffect(() => {
+  1104→    if (screen === 'dashboard' && token) {
+  1105→      const interval = setInterval(fetchProfile, 10000);
+  1106→      return () => clearInterval(interval);
+  1107→    }
+  1108→  }, [screen, token, fetchProfile]);
+  1109→
+  1110→  // Format countdown display
+  1111→  const formatCountdown = (seconds: number | null) => {
+  1112→    if (seconds === null) return '01:00';
+  1113→    const m = Math.floor(seconds / 60);
+  1114→    const s = seconds % 60;
+  1115→    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  1116→  };
+  1117→
+  1118→  // ==================== BOTTOM NAV ====================
+  1119→  const BottomNav = ({ active }: { active: string }) => {
+  1120→    if (!currentUser) return null;
+  1121→    const items = [
+  1122→      { key: 'dashboard', label: 'Beranda', icon: '🏠', screen: 'dashboard' as Screen },
+  1123→      { key: 'promosi', label: 'Promosi', icon: '🏷️', screen: 'promosi' as Screen },
+  1124→      { key: 'event', label: 'Event', icon: '📅', screen: 'event' as Screen },
+  1125→      ...(currentUser.role === 'admin' ? [{ key: 'admin', label: 'Admin', icon: '👥', screen: 'admin' as Screen }] : []),
+  1126→      { key: 'profile', label: 'Saya', icon: '👤', screen: 'profile' as Screen },
+  1127→    ];
+  1128→    return (
+  1129→      <div className="fixed bottom-0 left-0 right-0 bg-[#050814]/90 backdrop-blur-xl border-t border-white/10 z-50 flex justify-around py-3 max-w-md mx-auto">
+  1130→        {items.map(item => (
+  1131→          <button key={item.key} onClick={() => navigate(item.screen)}
+  1132→            className={`flex flex-col items-center text-[10px] font-medium transition-colors ${active === item.key ? 'text-orange-500 font-bold' : 'text-gray-500'}`}>
+  1133→            <span className="text-lg mb-0.5">{item.icon}</span>
+  1134→            {item.label}
+  1135→          </button>
+  1136→        ))}
+  1137→      </div>
+  1138→    );
+  1139→  };
+  1140→
+  1141→  // ==================== SCREEN: AUTH ====================
+  1142→  const AuthScreen = () => (
+  1143→    <div className="min-h-screen flex flex-col items-center justify-center p-4"
+  1144→      style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1145→      {/* Planet Logo */}
+  1146→      <div className="w-20 h-20 rounded-full flex items-center justify-center text-white font-extrabold text-xs relative mb-8"
+  1147→        style={{ background: 'linear-gradient(135deg, #ff9a56 0%, #ff6b35 100%)', boxShadow: '0 0 30px rgba(255,107,53,0.4)' }}>
+  1148→        MILES
+  1149→        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rotate-[-20deg] w-[120px] h-5 rounded-full border-[3px] border-white/30" />
+  1150→      </div>
+  1151→      
+  1152→      <div className="bg-[#10141f] border border-gray-700 rounded-3xl p-8 w-full max-w-sm shadow-2xl">
+  1153→        {/* Tabs */}
+  1154→        <div className="flex border-b border-gray-700 mb-6">
+  1155→          <button onClick={() => setAuthTab('login')}
+  1156→            className={`flex-1 py-3 text-center font-bold text-sm border-b-2 transition-colors ${authTab === 'login' ? 'text-orange-500 border-orange-500' : 'text-gray-500 border-transparent'}`}>
+  1157→            MASUK
+  1158→          </button>
+  1159→          <button onClick={() => setAuthTab('register')}
+  1160→            className={`flex-1 py-3 text-center font-bold text-sm border-b-2 transition-colors ${authTab === 'register' ? 'text-orange-500 border-orange-500' : 'text-gray-500 border-transparent'}`}>
+  1161→            DAFTAR
+  1162→          </button>
+  1163→        </div>
+  1164→
+  1165→        {/* Login Form */}
+  1166→        {authTab === 'login' && (
+  1167→          <div className="flex flex-col gap-4">
+  1168→            <div>
+  1169→              <label className="text-xs text-gray-400 block mb-1">Nama Pengguna</label>
+  1170→              <input ref={loginUsernameRef} type="text" defaultValue=""
+  1171→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1172→                placeholder="Masukkan username" />
+  1173→            </div>
+  1174→            <div>
+  1175→              <label className="text-xs text-gray-400 block mb-1">Kata Sandi</label>
+  1176→              <input ref={loginPasswordRef} type="password" defaultValue=""
+  1177→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1178→                placeholder="Masukkan kata sandi" />
+  1179→            </div>
+  1180→            <button onClick={handleLogin} disabled={loading === 'login'}
+  1181→              className="bg-green-500 text-white font-bold p-3.5 rounded-xl w-full text-sm cursor-pointer shadow-lg shadow-green-500/30 hover:bg-green-600 transition-colors disabled:opacity-50 mt-2">
+  1182→              {loading === 'login' ? '⏳ Memproses...' : 'Masuk'}
+  1183→            </button>
+  1184→            {/* Admin hint */}
+  1185→            <div className="text-center text-xs text-gray-500 mt-2 p-3 bg-[#0a0e18] rounded-lg border border-gray-700/50">
+  1186→              <p className="font-semibold text-gray-400">PT Mira Lesmana Production Services</p>
+  1187→            </div>
+  1188→          </div>
+  1189→        )}
+  1190→
+  1191→        {/* Register Form */}
+  1192→        {authTab === 'register' && (
+  1193→          <div className="flex flex-col gap-3">
+  1194→            <div>
+  1195→              <label className="text-xs text-gray-400 block mb-1">Kode Undangan <span className="text-red-400">*</span></label>
+  1196→              <input type="text" value={regInviteCode} onChange={e => setRegInviteCode(e.target.value)}
+  1197→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1198→                placeholder="Wajib diisi" />
+  1199→              <p className="text-[10px] text-gray-600 mt-0.5">Masukkan kode undangan dari admin</p>
+  1200→            </div>
+  1201→            <div>
+  1202→              <label className="text-xs text-gray-400 block mb-1">Nama Pengguna</label>
+  1203→              <input ref={regUsernameRef} type="text" defaultValue=""
+  1204→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1205→                placeholder="Masukkan nama pengguna" />
+  1206→            </div>
+  1207→            <div>
+  1208→              <label className="text-xs text-gray-400 block mb-1">Email</label>
+  1209→              <input ref={regEmailRef} type="email" defaultValue=""
+  1210→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1211→                placeholder="email@domain.com" />
+  1212→            </div>
+  1213→            <div>
+  1214→              <label className="text-xs text-gray-400 block mb-1">Nomor HP</label>
+  1215→              <input ref={regPhoneRef} type="tel" defaultValue=""
+  1216→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1217→                placeholder="08xxxxxxxxxx" />
+  1218→            </div>
+  1219→            <div>
+  1220→              <label className="text-xs text-gray-400 block mb-1">Kata Sandi</label>
+  1221→              <input ref={regPasswordRef} type="password" defaultValue=""
+  1222→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1223→                placeholder="Minimal 6 karakter" />
+  1224→            </div>
+  1225→            <div>
+  1226→              <label className="text-xs text-gray-400 block mb-1">Konfirmasi Sandi</label>
+  1227→              <input ref={regConfirmRef} type="password" defaultValue=""
+  1228→                className="bg-[#0a0e18] border border-gray-600 text-white p-3 rounded-xl w-full text-sm outline-none focus:border-orange-500 transition-colors"
+  1229→                placeholder="Ulangi kata sandi" />
+  1230→            </div>
+  1231→
+  1232→            <button onClick={handleRegister} disabled={loading === 'register'}
+  1233→              className="bg-green-500 text-white font-bold p-3.5 rounded-xl w-full text-sm cursor-pointer shadow-lg shadow-green-500/30 hover:bg-green-600 transition-colors disabled:opacity-50 mt-2">
+  1234→              {loading === 'register' ? '⏳ Memproses...' : 'Daftar'}
+  1235→            </button>
+  1236→          </div>
+  1237→        )}
+  1238→      </div>
+  1239→    </div>
+  1240→  );
+  1241→
+  1242→  // ==================== HEADER COMPONENT ====================
+  1243→  const Header = ({ title, showBack, backScreen }: { title: string; showBack?: boolean; backScreen?: Screen }) => (
+  1244→    <header className="flex items-center justify-between p-5 sticky top-0 bg-[#050814]/90 backdrop-blur-xl z-20 border-b border-white/10">
+  1245→      <div className="flex items-center gap-3">
+  1246→        {showBack && (
+  1247→          <button onClick={() => backScreen && navigate(backScreen)} className="text-white text-lg cursor-pointer bg-transparent border-none">←</button>
+  1248→        )}
+  1249→        <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center font-extrabold text-white text-sm shadow-lg shadow-orange-500/30">M</div>
+  1250→        <div>
+  1251→          {title === 'dashboard' ? (
+  1252→            <>
+  1253→              <p className="text-xs text-gray-400 m-0">Selamat datang!</p>
+  1254→              <h2 className="text-base font-bold m-0 text-white">{currentUser?.username || 'User'}</h2>
+  1255→            </>
+  1256→          ) : (
+  1257→            <h2 className="text-base font-bold m-0 text-white">{title}</h2>
+  1258→          )}
+  1259→        </div>
+  1260→      </div>
+  1261→    </header>
+  1262→  );
+  1263→
+  1264→  // ==================== SCREEN: DASHBOARD ====================
+  1265→  const DashboardScreen = () => (
+  1266→    <div className="pb-20 min-h-screen" style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1267→      {Header({ title: 'dashboard' })}
+  1268→      <main className="mt-4 flex flex-col gap-8">
+  1269→        {/* Trailer / Video Section */}
+  1270→        <section className="px-5">
+  1271→          <div
+  1272→            onClick={() => { if (trailerLink) window.open(trailerLink, '_blank'); }}
+  1273→            className={`relative rounded-2xl overflow-hidden aspect-video bg-gray-800 ${trailerLink ? 'cursor-pointer' : ''}`}
+  1274→          >
+  1275→            {trailerVideoUrl ? (
+  1276→              <video
+  1277→                src={trailerVideoUrl}
+  1278→                controls
+  1279→                autoPlay={false}
+  1280→                playsInline
+  1281→                className="w-full h-full object-cover"
+  1282→                poster={trailerImage && trailerImage.startsWith('http') ? trailerImage : "https://picsum.photos/seed/tungguaku/800/450"}
+  1283→              />
+  1284→            ) : (
+  1285→              <img src={trailerImage && trailerImage.startsWith('http') ? trailerImage : "https://picsum.photos/seed/tungguaku/800/450"} alt="Trailer" className="w-full h-full object-cover opacity-70" />
+  1286→            )}
+  1287→            {/* Play/Link overlay icon when trailerLink exists */}
+  1288→            {trailerLink && (
+  1289→              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+  1290→                <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+  1291→                  <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+  1292→                </div>
+  1293→              </div>
+  1294→            )}
+  1295→            <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 to-transparent pointer-events-none">
+  1296→              <span className="bg-red-600 text-white text-[10px] px-2 py-1 rounded font-bold">OFFICIAL TRAILER</span>
+  1297→              <h3 className="text-xl font-bold mt-2 text-white">{trailerTitle || 'Tunggu Aku Sukses Nanti'}</h3>
+  1298→            </div>
+  1299→          </div>
+  1300→        </section>
+  1301→        
+  1302→        {/* Popular Films */}
+  1303→        <section>
+  1304→          <div className="flex justify-between items-center px-5 mb-4">
+  1305→            <h3 className="font-bold text-lg text-white">FILM PALING POPULER</h3>
+  1306→          </div>
+  1307→          <div className="flex flex-col gap-4 px-5">
+  1308→            {movies.map(m => (
+  1309→              <div
+  1310→                key={m.id}
+  1311→                onClick={() => { if (m.link) window.open(m.link, '_blank'); }}
+  1312→                className={`flex gap-4 items-center bg-[#10141f] p-3 rounded-xl border ${m.link ? 'border-gray-700 cursor-pointer hover:border-orange-500/50 hover:bg-[#131828] transition-all' : 'border-gray-700'}`}
+  1313→              >
+  1314→                <div className="w-20 h-28 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0 relative">
+  1315→                  <img src={m.img && m.img.startsWith('http') ? m.img : `https://picsum.photos/seed/${m.img}/200/300`} alt={m.title} className="w-full h-full object-cover" />
+  1316→                  {m.link && (
+  1317→                    <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+  1318→                      <div className="w-8 h-8 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
+  1319→                        <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+  1320→                      </div>
+  1321→                    </div>
+  1322→                  )}
+  1323→                </div>
+  1324→                <div className="flex-1">
+  1325→                  <div className="mb-1">
+  1326→                    <span className="bg-orange-500/20 text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded">⭐ {m.rating}</span>
+  1327→                  </div>
+  1328→                  <h4 className="text-sm font-bold text-white">{m.title}</h4>
+  1329→                  <p className="text-xs text-gray-400 mt-1">{m.genre}</p>
+  1330→                  {m.link && (
+  1331→                    <p className="text-[10px] text-orange-400 mt-1.5 flex items-center gap-1">
+  1332→                      🔗 Klik untuk menonton
+  1333→                    </p>
+  1334→                  )}
+  1335→                </div>
+  1336→              </div>
+  1337→            ))}
+  1338→          </div>
+  1339→        </section>
+  1340→      </main>
+  1341→      {BottomNav({ active: 'dashboard' })}
+  1342→    </div>
+  1343→  );
+  1344→
+  1345→  // ==================== SCREEN: PROMOSI ====================
+  1346→  const PromosiScreen = () => (
+  1347→    <div className="pb-20 min-h-screen" style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1348→      {Header({ title: 'Promosi' })}
+  1349→      <main className="mt-6">
+  1350→        <div className="grid grid-cols-3 gap-2.5 px-5 md:grid-cols-4 md:gap-4">
+  1351→          {promos.map((p, i) => (
+  1352→            <a key={p.id} href={p.link} target="_blank"
+  1353→              className="relative aspect-[2/3] rounded-xl overflow-hidden bg-gray-800 border border-white/5 transition-all hover:scale-105 hover:shadow-xl hover:border-orange-500 z-10 cursor-pointer block">
+  1354→              <img src={`https://picsum.photos/seed/${p.img}/300/450`} alt={`Promo ${i+1}`} className="w-full h-full object-cover" />
+  1355→            </a>
+  1356→          ))}
+  1357→        </div>
+  1358→      </main>
+  1359→      {BottomNav({ active: 'promosi' })}
+  1360→    </div>
+  1361→  );
+  1362→
+  1363→  // ==================== SCREEN: EVENT ====================
+  1364→  const EventScreen = () => (
+  1365→    <div className="pb-20 min-h-screen" style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1366→      {Header({ title: 'Event' })}
+  1367→      <main className="mt-6 flex flex-col gap-4 px-5">
+  1368→        {events.map(ev => (
+  1369→          <div key={ev.id} onClick={() => { setSelectedEvent(ev); navigate('event-detail'); }}
+  1370→            className="relative rounded-2xl overflow-hidden aspect-video bg-gray-800 border border-white/10 cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl hover:border-orange-500">
+  1371→            <img src={`https://picsum.photos/seed/${ev.img}/800/450`} alt={ev.title} className="w-full h-full object-cover opacity-50 hover:opacity-80 transition-opacity" />
+  1372→            <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/95 via-black/40 to-transparent flex flex-col justify-end h-full">
+  1373→              <span className="text-orange-500 font-extrabold text-xs uppercase mb-1">{ev.aktivasi}</span>
+  1374→              <h3 className="text-white font-bold text-lg">{ev.title}</h3>
+  1375→            </div>
+  1376→          </div>
+  1377→        ))}
+  1378→      </main>
+  1379→      {BottomNav({ active: 'event' })}
+  1380→    </div>
+  1381→  );
+  1382→
+  1383→  // ==================== SCREEN: EVENT DETAIL ====================
+  1384→  const EventDetailScreen = () => {
+  1385→    if (!selectedEvent) return null;
+  1386→    const actions = ['Production', 'Director', 'Producer', 'Screenplay'];
+  1387→    const actionIcons: Record<string, string> = { Production: '🎬', Director: '📣', Producer: '💰', Screenplay: '✏️' };
+  1388→    
+  1389→    return (
+  1390→      <div className="pb-20 min-h-screen" style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1391→        <header className="flex items-center justify-between p-5 sticky top-0 bg-[#050814]/90 backdrop-blur-xl z-20 border-b border-white/10">
+  1392→          <div className="flex items-center gap-3">
+  1393→            <button onClick={() => navigate('event')} className="text-white text-lg cursor-pointer bg-transparent border-none">←</button>
+  1394→            <h2 className="text-base font-bold text-white max-w-[250px] truncate">{selectedEvent.title}</h2>
+  1395→          </div>
+  1396→        </header>
+  1397→        <main className="p-5">
+  1398→          <div className="bg-[#10141f] p-6 rounded-2xl border border-gray-700">
+  1399→            <h2 className="text-center text-white text-2xl font-extrabold mb-2">MilesFilm</h2>
+  1400→            <p className="text-center text-gray-400 text-sm mb-6">{selectedEvent.aktivasi}</p>
+  1401→            
+  1402→            {/* Timer */}
+  1403→            <div className="bg-[#0a0e18] p-4 rounded-xl border border-gray-700 text-center mb-6">
+  1404→              <span className="text-orange-500 font-bold text-xl">{formatCountdown(countdown)}</span>
+  1405→            </div>
+  1406→            
+  1407→            {/* Action Buttons */}
+  1408→            <div className="grid grid-cols-2 gap-3">
+  1409→              {actions.map(action => (
+  1410→                <button key={action} onClick={() => handleEventAction(action)}
+  1411→                  className={`bg-gray-800 text-white font-semibold p-3.5 rounded-xl border text-sm cursor-pointer transition-all ${selectedAction === action ? 'bg-orange-500 border-orange-500 shadow-lg shadow-orange-500/30' : 'border-gray-600 hover:bg-gray-700 hover:border-orange-500 hover:text-orange-500'}`}>
+  1412→                  {actionIcons[action]} {action}
+  1413→                </button>
+  1414→              ))}
+  1415→            </div>
+  1416→
+  1417→            {/* Shadow Coin Section */}
+  1418→            {selectedAction && (
+  1419→              <div className="mt-6 bg-[#0a0e18] p-5 rounded-xl border border-gray-700">
+  1420→                <h3 className="text-white text-base font-bold mb-4">Kolom Koin Bayangan</h3>
+  1421→                
+  1422→                {/* Reward List Header */}
+  1423→                <div className="flex gap-2 items-center pb-2 border-b border-gray-700 mb-1">
+  1424→                  <span className="w-[30%] text-[11px] text-gray-500 font-bold uppercase">Account</span>
+  1425→                  <span className="flex-1 text-[11px] text-gray-500 font-bold uppercase">Detail</span>
+  1426→                  <span className="w-[25%] text-[11px] text-gray-500 font-bold uppercase text-right">Amount</span>
+  1427→                </div>
+  1428→                
+  1429→                {/* Reward List */}
+  1430→                <div className="h-[250px] overflow-hidden border border-red-500/20 rounded-lg p-2.5 mb-4 bg-red-500/[0.03]">
+  1431→                  {rewardList.map((row, i) => (
+  1432→                    <div key={i} className="flex gap-2 items-center py-2.5 border-b border-gray-700/30">
+  1433→                      <div className="w-[30%] text-xs font-semibold text-gray-300 truncate">{row.name}</div>
+  1434→                      <div className="flex-1 text-[11px] text-gray-400 leading-tight">
+  1435→                        Telah menyelesaikan tugas dari <span className="text-orange-400 font-bold">{row.source}</span>
+  1436→                      </div>
+  1437→                      <div className="w-[25%] text-xs font-semibold text-green-400 text-right">Rp {row.amount}</div>
+  1438→                    </div>
+  1439→                  ))}
+  1440→                </div>
+  1441→
+  1442→                {/* Coin Input Footer */}
+  1443→                <div className="mt-4 pt-3 border-t border-gray-700">
+  1444→                  <div className="flex items-center justify-between">
+  1445→                    <label className="text-xs text-gray-400">Setiap koin bayangan</label>
+  1446→                    <input type="number" value={shadowCoinInput} onChange={e => setShadowCoinInput(e.target.value)}
+  1447→                      placeholder="0" className="bg-gray-800 border border-gray-600 text-white p-2 px-3 rounded-lg w-[120px] text-right font-semibold text-sm outline-none focus:border-orange-500 transition-colors" />
+  1448→                  </div>
+  1449→                  <div className="flex justify-between mt-2 pt-2 border-t border-gray-700">
+  1450→                    <span className="text-xs text-gray-400">Total 1 item</span>
+  1451→                    <span className="text-xs text-orange-500 font-semibold">Total: Rp {formatBalance(parseFloat(shadowCoinInput) || 0)}</span>
+  1452→                  </div>
+  1453→                  <div className="flex gap-2.5 mt-3">
+  1454→                    <button onClick={() => setShadowCoinInput('')}
+  1455→                      className="bg-red-500/10 text-red-400 border border-red-500/20 p-2.5 rounded-lg cursor-pointer font-semibold text-sm flex-1 hover:bg-red-500/20 transition-colors">
+  1456→                      🗑️ Hapus
+  1457→                    </button>
+  1458→                    <button onClick={handleUpgrade} disabled={countdown !== null}
+  1459→                      className="bg-orange-500 text-white border-none p-2.5 rounded-lg cursor-pointer font-bold text-sm shadow-lg shadow-orange-500/30 flex-[2] hover:bg-orange-600 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed disabled:shadow-none">
+  1460→                      {countdown !== null ? `Menunggu... ${formatCountdown(countdown)}` : 'Tingkatkan segera'}
+  1461→                    </button>
+  1462→                  </div>
+  1463→                </div>
+  1464→              </div>
+  1465→            )}
+  1466→          </div>
+  1467→        </main>
+  1468→        {BottomNav({ active: 'event' })}
+  1469→      </div>
+  1470→    );
+  1471→  };
+  1472→
+  1473→  // ==================== SCREEN: UPGRADE (Pending Confirmation) ====================
+  1474→  const UpgradeScreen = () => (
+  1475→    <div className="pb-20 min-h-screen" style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1476→      <header className="flex items-center justify-between p-5 sticky top-0 bg-[#050814]/90 backdrop-blur-xl z-20 border-b border-white/10">
+  1477→        <div className="flex items-center gap-3">
+  1478→          <button onClick={() => navigate('event-detail')} className="text-white text-lg cursor-pointer bg-transparent border-none">←</button>
+  1479→          <h2 className="text-base font-bold text-white">Tingkatkan</h2>
+  1480→        </div>
+  1481→      </header>
+  1482→      <main className="p-5">
+  1483→        <div className="bg-[#10141f] p-8 rounded-3xl text-center border border-green-500 shadow-2xl shadow-green-500/20">
+  1484→          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-500/10 flex items-center justify-center border-2 border-green-500">
+  1485→            <span className="text-4xl">✅</span>
+  1486→          </div>
+  1487→          <h3 className="text-xl font-extrabold text-white mb-2">Permintaan Terkirim!</h3>
+  1488→          <p className="text-gray-400 text-sm mb-2">Level <span className="text-orange-500 font-bold">{selectedAction}</span> Anda sedang menunggu persetujuan admin.</p>
+  1489→          <p className="text-orange-500 text-lg font-bold mb-6">Koin: Rp {formatBalance(parseFloat(shadowCoinInput) || 0)}</p>
+  1490→          <p className="text-gray-500 text-xs mb-6">Saldo akan bertambah setelah admin menyetujui permintaan Anda.</p>
+  1491→          <button onClick={() => navigate('event')}
+  1492→            className="bg-green-500 text-white font-bold p-3.5 rounded-xl w-full text-sm cursor-pointer shadow-lg shadow-green-500/30 hover:bg-green-600 transition-colors">
+  1493→            Kembali ke Event
+  1494→          </button>
+  1495→        </div>
+  1496→      </main>
+  1497→      {BottomNav({ active: 'event' })}
+  1498→    </div>
+  1499→  );
+  1500→
+  1501→  // ==================== SCREEN: ADMIN ====================
+  1502→  const AdminScreen = () => {
+  1503→    if (currentUser?.role !== 'admin') return null;
+  1504→    return (
+  1505→      <div className="pb-20 min-h-screen" style={{ background: 'radial-gradient(circle at 50% 0%, #1a1f40 0%, #050814 60%)' }}>
+  1506→        <header className="flex items-center justify-between p-5 sticky top-0 bg-[#050814]/90 border-b border-white/10 z-20">
+  1507→          <div className="flex items-center gap-3">
+  1508→            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-400">🛡️</div>
+  1509→            <div>
+  1510→              <p className="text-xs text-gray-400 m-0">Control Panel</p>
+  1511→              <h2 className="text-base font-bold text-white m-0">Member List</h2>
+  1512→            </div>
+  1513→          </div>
+  1514→          <button onClick={() => navigate('dashboard')} className="text-gray-400 text-sm font-semibold bg-transparent border-none cursor-pointer">
+  1515→            ← Kembali
+  1516→          </button>
+  1517→        </header>
+  1518→        <main className="mt-4 px-4">
+  1519→          {/* Search Bar + Action Buttons */}
+  1520→          <div className="mb-4 flex items-center justify-between gap-2">
+  1521→            {/* Left: Action Buttons + Active Code Badge */}
+  1522→            <div className="flex gap-2 flex-wrap items-center">
+  1523→              <button onClick={() => setShowRegForm(!showRegForm)}
+  1524→                className="bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-blue-600 transition-colors shadow-md shadow-blue-500/20">
+  1525→                Registrasi
+  1526→              </button>
+  1527→              <button onClick={() => setShowKodeInput(!showKodeInput)}
+  1528→                className="bg-purple-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-purple-600 transition-colors shadow-md shadow-purple-500/20">
+  1529→                Kode
+  1530→              </button>
+  1531→              <button onClick={() => { setShowDepositModal(true); setDwForm({ username: '', rekeningName: '', rekeningNumber: '', amount: '' }); }}
+  1532→                className="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-green-600 transition-colors shadow-md shadow-green-500/20">
+  1533→                Deposit
+  1534→              </button>
+  1535→              <button onClick={() => { setShowWithdrawModal(true); setDwForm({ username: '', rekeningName: '', rekeningNumber: '', amount: '' }); }}
+  1536→                className="bg-green-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-green-600 transition-colors shadow-md shadow-green-500/20">
+  1537→                Withdraw
+  1538→              </button>
+  1539→              <button onClick={() => { setShowRekeningForm(!showRekeningForm); if (!showRekeningForm) loadBankDestinations(); }}
+  1540→                className="bg-orange-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-orange-600 transition-colors shadow-md shadow-orange-500/20">
+  1541→                Rekening
+  1542→              </button>
+  1543→              <button onClick={() => { setShowMovieManager(!showMovieManager); if (!showMovieManager) loadMovies(); }}
+  1544→                className="bg-cyan-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-cyan-600 transition-colors shadow-md shadow-cyan-500/20">
+  1545→                Film
+  1546→              </button>
+  1547→              {/* Active Invite Code Badge - next to Withdraw */}
+  1548→              {isInviteCodeActive && activeInviteCode && (
+  1549→                <div className="bg-[#10141f] border border-green-500/40 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+  1550→                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0 animate-pulse"></span>
+  1551→                  <span className="text-[10px] text-green-400 font-bold">Kode: <span className="text-white">{activeInviteCode}</span></span>
+  1552→                </div>
+  1553→              )}
+  1554→            </div>
+  1555→
+  1556→            {/* Right: Search Input + Search Button */}
+  1557→            <div className="flex items-center gap-1.5" style={{ width: '25%', minWidth: '130px' }}>
+  1558→              <input
+  1559→                type="text"
+  1560→                value={memberSearch}
+  1561→                onChange={e => handleMemberSearch(e.target.value)}
+  1562→                onKeyDown={e => { if (e.key === 'Enter') handleSearchClick(); }}
+  1563→                placeholder="Cari username"
+  1564→                className="flex-1 min-w-0 bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-[11px] outline-none focus:border-orange-500 transition-colors"
+  1565→              />
+  1566→              <button
+  1567→                onClick={handleSearchClick}
+  1568→                className="bg-[#0a0e18] border border-gray-600 text-gray-400 p-2 rounded-lg cursor-pointer hover:border-orange-500 hover:text-orange-400 transition-colors flex items-center justify-center flex-shrink-0"
+  1569→              >
+  1570→                🔍
+  1571→              </button>
+  1572→            </div>
+  1573→          </div>
+  1574→
+  1575→          {/* Inline Registration Form */}
+  1576→          {showRegForm && (
+  1577→            <div className="bg-[#10141f] border border-blue-500/30 rounded-xl p-4 mb-4 flex flex-col gap-3">
+  1578→              <div className="flex items-center justify-between">
+  1579→                <h4 className="text-blue-400 font-bold text-sm">📝 Registrasi Akun Baru</h4>
+  1580→                <button onClick={() => setShowRegForm(false)} className="text-gray-400 text-sm cursor-pointer bg-transparent border-none hover:text-white">✕</button>
+  1581→              </div>
+  1582→              <div className="grid grid-cols-2 gap-2">
+  1583→                <div>
+  1584→                  <label className="text-[10px] text-gray-400 block mb-0.5">Username</label>
+  1585→                  <input type="text" value={regForm.username} onChange={e => setRegForm(p => ({...p, username: e.target.value}))}
+  1586→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-blue-500 transition-colors"
+  1587→                    placeholder="Username" />
+  1588→                </div>
+  1589→                <div>
+  1590→                  <label className="text-[10px] text-gray-400 block mb-0.5">Email</label>
+  1591→                  <input type="email" value={regForm.email} onChange={e => setRegForm(p => ({...p, email: e.target.value}))}
+  1592→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-blue-500 transition-colors"
+  1593→                    placeholder="email@domain.com" />
+  1594→                </div>
+  1595→                <div>
+  1596→                  <label className="text-[10px] text-gray-400 block mb-0.5">No HP</label>
+  1597→                  <input type="tel" value={regForm.phone} onChange={e => setRegForm(p => ({...p, phone: e.target.value}))}
+  1598→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-blue-500 transition-colors"
+  1599→                    placeholder="08xxxxxxxxxx" />
+  1600→                </div>
+  1601→                <div>
+  1602→                  <label className="text-[10px] text-gray-400 block mb-0.5">Password</label>
+  1603→                  <input type="password" value={regForm.password} onChange={e => setRegForm(p => ({...p, password: e.target.value}))}
+  1604→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-blue-500 transition-colors"
+  1605→                    placeholder="Minimal 6 karakter" />
+  1606→                </div>
+  1607→              </div>
+  1608→              <button onClick={handleAdminRegister} disabled={loadingReg}
+  1609→                className="bg-blue-500 text-white font-bold p-2.5 rounded-lg w-full text-xs cursor-pointer shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-colors disabled:opacity-50">
+  1610→                {loadingReg ? '⏳ Mendaftarkan...' : '✅ Daftarkan Akun'}
+  1611→              </button>
+  1612→            </div>
+  1613→          )}
+  1614→
+  1615→          {/* Inline Kode Input */}
+  1616→          {showKodeInput && (
+  1617→            <div className="bg-[#10141f] border border-purple-500/30 rounded-xl p-4 mb-4 flex flex-col gap-3">
+  1618→              <div className="flex items-center justify-between">
+  1619→                <h4 className="text-purple-400 font-bold text-sm">🔑 Kode Undangan</h4>
+  1620→                <button onClick={() => setShowKodeInput(false)} className="text-gray-400 text-sm cursor-pointer bg-transparent border-none hover:text-white">✕</button>
+  1621→              </div>
+  1622→              <div className="flex gap-2">
+  1623→                <input type="text" value={adminInviteCode} onChange={e => setAdminInviteCode(e.target.value)}
+  1624→                  className="flex-1 bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs outline-none focus:border-purple-500 transition-colors"
+  1625→                  placeholder="Masukkan kode undangan" />
+  1626→              </div>
+  1627→              {/* Active/Inactive Status */}
+  1628→              <div className="flex items-center justify-between bg-[#0a0e18] border border-gray-700 rounded-lg p-2.5">
+  1629→                <div className="flex items-center gap-2">
+  1630→                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isInviteCodeActive ? 'bg-green-400' : 'bg-gray-500'}`}></span>
+  1631→                  <span className={`text-[11px] font-bold ${isInviteCodeActive ? 'text-green-400' : 'text-gray-500'}`}>
+  1632→                    {isInviteCodeActive ? 'AKTIF' : 'TIDAK AKTIF'}
+  1633→                  </span>
+  1634→                  {isInviteCodeActive && activeInviteCode && (
+  1635→                    <span className="text-[10px] text-gray-400 ml-1">({activeInviteCode})</span>
+  1636→                  )}
+  1637→                </div>
+  1638→              </div>
+  1639→              {/* Action Buttons */}
+  1640→              <div className="flex gap-2">
+  1641→                <button onClick={handleSaveInviteCode} disabled={loadingKode || !adminInviteCode.trim()}
+  1642→                  className="flex-1 bg-green-500 text-white text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-green-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+  1643→                  {loadingKode ? '⏳...' : '✅ Aktifkan'}
+  1644→                </button>
+  1645→                <button onClick={handleDeactivateInviteCode} disabled={loadingKode || !isInviteCodeActive}
+  1646→                  className="flex-1 bg-red-500/20 text-red-400 text-xs font-bold px-3 py-2 rounded-lg cursor-pointer hover:bg-red-500/30 transition-colors border border-red-500/30 disabled:opacity-40 disabled:cursor-not-allowed">
+  1647→                  ❌ Nonaktifkan
+  1648→                </button>
+  1649→              </div>
+  1650→            </div>
+  1651→          )}
+  1652→
+  1653→          {/* Inline Rekening Form */}
+  1654→          {showRekeningForm && (
+  1655→            <div className="bg-[#10141f] border border-orange-500/30 rounded-xl p-4 mb-4 flex flex-col gap-3">
+  1656→              <div className="flex items-center justify-between">
+  1657→                <h4 className="text-orange-400 font-bold text-sm">🏦 Bank Tujuan</h4>
+  1658→                <button onClick={() => setShowRekeningForm(false)} className="text-gray-400 text-sm cursor-pointer bg-transparent border-none hover:text-white">✕</button>
+  1659→              </div>
+  1660→              <div className="grid grid-cols-2 gap-2">
+  1661→                <div>
+  1662→                  <label className="text-[10px] text-gray-400 block mb-0.5">Nama Rekening</label>
+  1663→                  <input type="text" value={rekeningForm.bankName} onChange={e => setRekeningForm(p => ({...p, bankName: e.target.value}))}
+  1664→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-orange-500 transition-colors"
+  1665→                    placeholder="Nama pemilik rekening" />
+  1666→                </div>
+  1667→                <div>
+  1668→                  <label className="text-[10px] text-gray-400 block mb-0.5">Nomor Rekening</label>
+  1669→                  <input type="text" value={rekeningForm.accountNumber} onChange={e => setRekeningForm(p => ({...p, accountNumber: e.target.value}))}
+  1670→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-orange-500 transition-colors"
+  1671→                    placeholder="Nomor rekening" />
+  1672→                </div>
+  1673→              </div>
+  1674→              <div>
+  1675→                <label className="text-[10px] text-gray-400 block mb-0.5">Jenis Bank</label>
+  1676→                <select value={rekeningForm.bankType} onChange={e => setRekeningForm(p => ({...p, bankType: e.target.value}))}
+  1677→                  className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none cursor-pointer appearance-none">
+  1678→                  <optgroup label="Bank" className="bg-[#0a0e18] text-orange-500">
+  1679→                    {['BCA','BRI','BNI','Mandiri','Bank BTN','Bank Danamon','BSI','CIMB Niaga','SeaBank','Bank Jago','Bank Mega','Bank Panin','BTPN Syariah','Bank Muamalat','blu by BCA Digital','Allo Bank','Superbank'].map(v => <option key={v} value={v}>{v}</option>)}
+  1680→                  </optgroup>
+  1681→                  <optgroup label="E-Wallet" className="bg-[#0a0e18] text-orange-500">
+  1682→                    {['WISE','OVO','GOPAY','DANA','SHOPEEPAY'].map(v => <option key={v} value={v}>{v}</option>)}
+  1683→                  </optgroup>
+  1684→                </select>
+  1685→              </div>
+  1686→              <button onClick={handleSaveRekening} disabled={loadingRekening}
+  1687→                className="bg-orange-500 text-white font-bold p-2.5 rounded-lg w-full text-xs cursor-pointer shadow-lg shadow-orange-500/30 hover:bg-orange-600 transition-colors disabled:opacity-50">
+  1688→                {loadingRekening ? '⏳ Menyimpan...' : '✅ Simpan Bank Tujuan'}
+  1689→              </button>
+  1690→              {/* List of existing bank destinations */}
+  1691→              {bankDestList.length > 0 && (
+  1692→                <div className="mt-2">
+  1693→                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-1.5">Bank Tujuan Terdaftar</p>
+  1694→                  <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+  1695→                    {bankDestList.map(bank => (
+  1696→                      <div key={bank.id} className="flex items-center justify-between bg-[#0a0e18] border border-gray-700 rounded-lg px-2.5 py-2">
+  1697→                        <div className="flex-1 min-w-0">
+  1698→                          <div className="flex items-center gap-1.5">
+  1699→                            <span className="text-[10px] text-orange-400 font-bold">{bank.bankType}</span>
+  1700→                            <span className="text-[10px] text-gray-300 truncate">{bank.bankName}</span>
+  1701→                          </div>
+  1702→                          <p className="text-[9px] text-gray-500 truncate">{bank.accountNumber}</p>
+  1703→                        </div>
+  1704→                        <button onClick={() => handleDeleteRekening(bank.id)}
+  1705→                          className="text-red-400 text-[10px] cursor-pointer bg-transparent border-none hover:text-red-300 ml-2 flex-shrink-0">
+  1706→                          🗑️
+  1707→                        </button>
+  1708→                      </div>
+  1709→                    ))}
+  1710→                  </div>
+  1711→                </div>
+  1712→              )}
+  1713→            </div>
+  1714→          )}
+  1715→
+  1716→          {/* Inline Film Manager */}
+  1717→          {showMovieManager && (
+  1718→            <div className="bg-[#10141f] border border-cyan-500/30 rounded-xl p-4 mb-4 flex flex-col gap-3">
+  1719→              <div className="flex items-center justify-between">
+  1720→                <h4 className="text-cyan-400 font-bold text-sm">🎬 Kelola Film & Trailer</h4>
+  1721→                <button onClick={() => setShowMovieManager(false)} className="text-gray-400 text-sm cursor-pointer bg-transparent border-none hover:text-white">✕</button>
+  1722→              </div>
+  1723→
+  1724→              {/* Trailer Title */}
+  1725→              <div>
+  1726→                <label className="text-[10px] text-gray-400 block mb-1">🏷️ Judul Trailer (Banner Beranda)</label>
+  1727→                <input type="text" value={trailerTitle} onChange={e => setTrailerTitle(e.target.value)}
+  1728→                  className="w-full bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs outline-none focus:border-cyan-500 transition-colors"
+  1729→                  placeholder="Tunggu Aku Sukses Nanti" />
+  1730→              </div>
+  1731→
+  1732→              {/* Trailer Image URL */}
+  1733→              <div>
+  1734→                <label className="text-[10px] text-gray-400 block mb-1">🖼️ URL Gambar Trailer (Banner Beranda)</label>
+  1735→                <input type="text" value={trailerImage} onChange={e => setTrailerImage(e.target.value)}
+  1736→                  className="w-full bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs outline-none focus:border-cyan-500 transition-colors"
+  1737→                  placeholder="https://example.com/trailer.jpg (kosongkan = gambar default)" />
+  1738→              </div>
+  1739→
+  1740→              {/* Trailer Video URL */}
+  1741→              <div>
+  1742→                <label className="text-[10px] text-gray-400 block mb-1">🎬 URL Video Trailer (Beranda)</label>
+  1743→                <input type="text" value={trailerVideoUrl} onChange={e => setTrailerVideoUrl(e.target.value)}
+  1744→                  className="w-full bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs outline-none focus:border-cyan-500 transition-colors"
+  1745→                  placeholder="https://example.com/video.mp4" />
+  1746→              </div>
+  1747→
+  1748→              {/* Trailer Link */}
+  1749→              <div>
+  1750→                <label className="text-[10px] text-gray-400 block mb-1">🔗 Link Trailer (diklik → buka link)</label>
+  1751→                <div className="flex gap-2">
+  1752→                  <input type="text" value={trailerLink} onChange={e => setTrailerLink(e.target.value)}
+  1753→                    className="flex-1 bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs outline-none focus:border-cyan-500 transition-colors"
+  1754→                    placeholder="https://youtube.com/watch?v=..." />
+  1755→                  <button onClick={handleSaveTrailerUrl} disabled={loadingMovie}
+  1756→                    className="bg-cyan-500 text-white text-[10px] font-bold px-3 rounded-lg cursor-pointer hover:bg-cyan-600 transition-colors disabled:opacity-40 whitespace-nowrap">
+  1757→                    {loadingMovie ? '⏳' : '💾 Simpan'}
+  1758→                  </button>
+  1759→                </div>
+  1760→              </div>
+  1761→
+  1762→              {/* Add New Movie */}
+  1763→              <div className="border-t border-gray-700 pt-3">
+  1764→                <p className="text-[10px] text-gray-500 font-bold uppercase mb-2">Tambah Film Baru</p>
+  1765→                <div className="grid grid-cols-2 gap-2">
+  1766→                  <div>
+  1767→                    <label className="text-[10px] text-gray-400 block mb-0.5">Judul Film</label>
+  1768→                    <input type="text" value={movieForm.title} onChange={e => setMovieForm(p => ({...p, title: e.target.value}))}
+  1769→                      className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-cyan-500 transition-colors"
+  1770→                      placeholder="Judul film" />
+  1771→                  </div>
+  1772→                  <div>
+  1773→                    <label className="text-[10px] text-gray-400 block mb-0.5">Genre</label>
+  1774→                    <input type="text" value={movieForm.genre} onChange={e => setMovieForm(p => ({...p, genre: e.target.value}))}
+  1775→                      className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-cyan-500 transition-colors"
+  1776→                      placeholder="Aksi, Horor, dll" />
+  1777→                  </div>
+  1778→                  <div>
+  1779→                    <label className="text-[10px] text-gray-400 block mb-0.5">Rating</label>
+  1780→                    <input type="text" value={movieForm.rating} onChange={e => setMovieForm(p => ({...p, rating: e.target.value}))}
+  1781→                      className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-cyan-500 transition-colors"
+  1782→                      placeholder="9.0" />
+  1783→                  </div>
+  1784→                  <div>
+  1785→                    <label className="text-[10px] text-gray-400 block mb-0.5">Link Film</label>
+  1786→                    <input type="text" value={movieForm.link} onChange={e => setMovieForm(p => ({...p, link: e.target.value}))}
+  1787→                      className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-cyan-500 transition-colors"
+  1788→                      placeholder="https://..." />
+  1789→                  </div>
+  1790→                </div>
+  1791→                <div className="mt-2">
+  1792→                  <label className="text-[10px] text-gray-400 block mb-0.5">🖼️ URL Gambar Poster Film (opsional)</label>
+  1793→                  <input type="text" value={movieForm.img} onChange={e => setMovieForm(p => ({...p, img: e.target.value}))}
+  1794→                    className="bg-[#0a0e18] border border-gray-600 text-white p-2 rounded-lg text-xs w-full outline-none focus:border-cyan-500 transition-colors"
+  1795→                    placeholder="https://example.com/poster.jpg (kosongkan = gambar acak)" />
+  1796→                </div>
+  1797→                <button onClick={handleAddMovie} disabled={loadingMovie || !movieForm.title || !movieForm.genre}
+  1798→                  className="bg-cyan-500 text-white text-xs font-bold px-3 py-2 rounded-lg w-full mt-2 cursor-pointer hover:bg-cyan-600 transition-colors disabled:opacity-40">
+  1799→                  ➕ Tambah Film
+  1800→                </button>
+  1801→              </div>
+  1802→
+  1803→              {/* Existing Movies List */}
+  1804→              {movies.length > 0 && (
+  1805→                <div className="border-t border-gray-700 pt-3">
+  1806→                  <p className="text-[10px] text-gray-500 font-bold uppercase mb-2">Daftar Film ({movies.length})</p>
+  1807→                  <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
+  1808→                    {movies.map(m => (
+  1809→                      <div key={m.id} className="bg-[#0a0e18] border border-gray-700 rounded-lg p-2.5">
+  1810→                        {editingMovieId === m.id ? (
+  1811→                          /* Full Edit Mode */
+  1812→                          <div className="flex flex-col gap-2">
+  1813→                            <div className="grid grid-cols-3 gap-2">
+  1814→                              <input type="text" defaultValue={m.title} id={`movie-title-${m.id}`}
+  1815→                                className="bg-[#10141f] border border-gray-600 text-white p-1.5 rounded text-[10px] outline-none focus:border-cyan-500 transition-colors"
+  1816→                                placeholder="Judul film" />
+  1817→                              <input type="text" defaultValue={m.genre} id={`movie-genre-${m.id}`}
+  1818→                                className="bg-[#10141f] border border-gray-600 text-white p-1.5 rounded text-[10px] outline-none focus:border-cyan-500 transition-colors"
+  1819→                                placeholder="Genre" />
+  1820→                              <input type="text" defaultValue={m.rating} id={`movie-rating-${m.id}`}
+  1821→                                className="bg-[#10141f] border border-gray-600 text-white p-1.5 rounded text-[10px] outline-none focus:border-cyan-500 transition-colors"
+  1822→                                placeholder="Rating" />
+  1823→                            </div>
+  1824→                            <input type="text" defaultValue={m.img} id={`movie-img-${m.id}`}
+  1825→                              className="w-full bg-[#10141f] border border-gray-600 text-white p-1.5 rounded text-[10px] outline-none focus:border-cyan-500 transition-colors"
+  1826→                              placeholder="URL Gambar Poster (https://...)" />
+  1827→                            <div className="flex gap-2">
+  1828→                              <input type="text" defaultValue={m.link} id={`movie-link-${m.id}`}
+  1829→                                className="flex-1 bg-[#10141f] border border-gray-600 text-white p-1.5 rounded text-[10px] outline-none focus:border-cyan-500 transition-colors"
+  1830→                                placeholder="Link film (https://...)" />
+  1831→                              <button onClick={() => {
+  1832→                                const title = (document.getElementById(`movie-title-${m.id}`) as HTMLInputElement)?.value?.trim();
+  1833→                                const genre = (document.getElementById(`movie-genre-${m.id}`) as HTMLInputElement)?.value?.trim();
+  1834→                                const rating = (document.getElementById(`movie-rating-${m.id}`) as HTMLInputElement)?.value?.trim();
+  1835→                                const link = (document.getElementById(`movie-link-${m.id}`) as HTMLInputElement)?.value?.trim();
+  1836→                                const img = (document.getElementById(`movie-img-${m.id}`) as HTMLInputElement)?.value?.trim();
+  1837→                                if (title) handleSaveMovieEdit(m.id, { title, genre: genre || '', rating: rating || '', link: link || '', img: img || '' });
+  1838→                              }}
+  1839→                                className="bg-cyan-500 text-white text-[10px] font-bold px-3 rounded cursor-pointer hover:bg-cyan-600">
+  1840→                                ✅ Simpan
+  1841→                              </button>
+  1842→                              <button onClick={() => setEditingMovieId(null)}
+  1843→                                className="bg-gray-700 text-white text-[10px] font-bold px-2.5 rounded cursor-pointer hover:bg-gray-600">
+  1844→                                ❌
+  1845→                              </button>
+  1846→                            </div>
+  1847→                          </div>
+  1848→                        ) : (
+  1849→                          /* Display Mode */
+  1850→                          <>
+  1851→                            <div className="flex items-center justify-between mb-1">
+  1852→                              <div className="flex items-center gap-2 flex-1 min-w-0">
+  1853→                                <span className="text-[10px] text-cyan-400 font-bold">⭐ {m.rating}</span>
+  1854→                                <span className="text-xs text-white font-semibold truncate">{m.title}</span>
+  1855→                                <span className="text-[10px] text-gray-500">{m.genre}</span>
+  1856→                              </div>
+  1857→                              <button onClick={() => handleDeleteMovie(m.id)}
+  1858→                                className="text-red-400 text-[10px] cursor-pointer bg-transparent border-none hover:text-red-300 flex-shrink-0">
+  1859→                                🗑️
+  1860→                              </button>
+  1861→                            </div>
+  1862→                            <div className="flex items-center justify-between">
+  1863→                              <p className="text-[10px] text-gray-500 truncate flex-1">{m.link || 'Belum ada link'}</p>
+  1864→                              <button onClick={() => setEditingMovieId(m.id)}
+  1865→                                className="text-cyan-400 text-[10px] cursor-pointer bg-transparent border-none hover:text-cyan-300 flex-shrink-0 ml-2">
+  1866→                                ✏️ Edit
+  1867→                              </button>
+  1868→                            </div>
+  1869→                          </>
+  1870→                        )}
+  1871→                      </div>
+  1872→                    ))}
+  1873→                  </div>
+  1874→                </div>
+  1875→              )}
+  1876→            </div>
+  1877→          )}
+  1878→
+  1879→          {/* Table Header */}
+  1880→          <div className="bg-[#10141f] border border-gray-700 rounded-t-xl px-3 py-2.5 flex items-center">
+  1881→            <div className="flex-1 text-[10px] text-gray-500 font-bold uppercase tracking-wider">Akun Pengguna</div>
+  1882→            <div className="w-[100px] text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Saldo</div>
+  1883→            <div className="w-[130px] text-[10px] text-gray-500 font-bold uppercase tracking-wider text-center">Rekening</div>
+  1884→          </div>
+  1885→
+  1886→          {/* Member Rows */}
+  1887→          <div className="flex flex-col">
+  1888→            {adminUsers.length === 0 ? (
+  1889→              <div className="bg-[#10141f] border border-t-0 border-gray-700 rounded-b-xl p-8 text-center">
+  1890→                <p className="text-gray-500 text-sm">Tidak ada data member</p>
+  1891→              </div>
+  1892→            ) : (
+  1893→              adminUsers.map((u, idx) => (
+  1894→                <div key={u.id} className={`bg-[#10141f] border border-gray-700 border-t-0 flex items-center ${idx === adminUsers.length - 1 ? 'rounded-b-xl' : ''}`}>
+  1895→                  {/* LEFT BOX: Account Info */}
+  1896→                  <div
+  1897→                    className="flex-1 px-3 py-3 cursor-pointer hover:bg-white/[0.03] transition-colors border-r border-gray-700"
+  1898→                    onDoubleClick={() => handleSelectMember(u.id)}
+  1899→                    title="Klik 2x untuk edit"
+  1900→                  >
+  1901→                    <div className="flex items-center gap-1.5 mb-0.5">
+  1902→                      <button
+  1903→                        onClick={e => { e.stopPropagation(); handleCopyUsername(u.username); }}
+  1904→                        className="text-[9px] bg-gray-700 hover:bg-gray-600 text-gray-300 w-4 h-4 rounded flex items-center justify-center flex-shrink-0 cursor-pointer transition-colors leading-none"
+  1905→                        title="Salin username"
+  1906→                      >
+  1907→                        📋
+  1908→                      </button>
+  1909→                      <span className="text-white text-xs font-bold truncate">{u.username}</span>
+  1910→                      {u.role === 'admin' && <span className="text-[9px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded font-bold flex-shrink-0">ADMIN</span>}
+  1911→                    </div>
+  1912→                    <p className="text-[10px] text-gray-500 truncate mb-1 ml-5">{u.email}</p>
+  1913→                    <div className="flex items-center gap-1.5 ml-5">
+  1914→                      {u.lastActive && isOnline(u.lastActive) ? (
+  1915→                        <>
+  1916→                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0"></span>
+  1917→                          <span className="text-[10px] text-green-400 font-medium">Online</span>
+  1918→                        </>
+  1919→                      ) : (
+  1920→                        <>
+  1921→                          <span className="w-1.5 h-1.5 rounded-full bg-gray-500 flex-shrink-0"></span>
+  1922→                          <span className="text-[10px] text-gray-400">{u.lastActive ? `Offline (${formatTimeAgo(u.lastActive)})` : 'Offline'}</span>
+  1923→                        </>
+  1924→                      )}
+  1925→                    </div>
+  1926→                  </div>
+  1927→
+  1928→                  {/* MIDDLE BOX: Balance - centered */}
+  1929→                  <div className="w-[100px] flex items-center justify-center border-r border-gray-700 py-3 px-1">
+  1930→                    <span className="text-orange-500 text-[11px] font-bold text-center leading-tight">Rp {formatBalance(u.balance)}</span>
+  1931→                  </div>
+  1932→
+  1933→                  {/* RIGHT BOX: Bank Account + Bank Type */}
+  1934→                  <div className="w-[130px] flex flex-col justify-center items-center py-3 px-1.5">
+  1935→                    {u.withdrawAccounts && u.withdrawAccounts.length > 0 ? (
+  1936→                      <>
+  1937→                        <span className="text-[10px] text-gray-300 font-medium truncate w-full text-center">{u.withdrawAccounts[0].bankOwner}</span>
+  1938→                        <span className="text-[10px] text-gray-500 truncate w-full text-center">{u.withdrawAccounts[0].accountNumber}</span>
+  1939→                        <span className="text-[9px] text-orange-400/80 font-medium truncate w-full text-center">{u.withdrawAccounts[0].bankName || u.withdrawAccounts[0].cardType}</span>
+  1940→                      </>
+  1941→                    ) : (
+  1942→                      <span className="text-[10px] text-gray-600">-</span>
+  1943→                    )}
+  1944→                  </div>
+  1945→                </div>
+  1946→              ))
+  1947→            )}
+  1948→          </div>
+  1949→
+  1950→          {/* Pagination */}
+  1951→          {memberTotalPages > 1 && (
+  1952→            <div className="flex justify-end items-center mt-3 gap-2">
+  1953→              <button
+  1954→                onClick={() => setMemberPage(p => Math.max(1, p - 1))}
+  1955→                disabled={memberPage <= 1}
+  1956→                className="bg-[#10141f] border border-gray-700 text-gray-400 w-8 h-8 rounded-lg text-xs cursor-pointer hover:border-orange-500 hover:text-orange-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+  1957→              >
+  1958→                ‹
+  1959→              </button>
+  1960→              <span className="text-gray-400 text-xs font-medium">
+  1961→                {memberPage} / {memberTotalPages}
+  1962→              </span>
+  1963→              <button
+  1964→                onClick={() => setMemberPage(p => Math.min(memberTotalPages, p + 1))}
+  1965→                disabled={memberPage >= memberTotalPages}
+  1966→                className="bg-[#10141f] border border-gray-700 text-gray-400 w-8 h-8 rounded-lg text-xs cursor-pointer hover:border-orange-500 hover:text-orange-400 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center"
+  1967→              >
+  1968→                ›
+  1969→              </button>
+  1970→            </div>
+  1971→          )}
+  1972→
+  1973→          {/* Total Info */}
+  1974→          <div className="mt-2 text-right">
+  1975→            <span className="text-gray-600 text-[10px]">Total: {memberTotal} pengguna</span>
+  1976→          </div>
+  1977→
+  1978→          {/* Pending Upgrade Requests */}
+  1979→          {pendingUpgrades.length > 0 && (
+  1980→            <div className="mt-6">
+  1981→              <h3 className="text-white font-bold text-sm mb-3">Permintaan Peningkatan ({pendingUpgrades.length})</h3>
+  1982→              <div className="flex flex-col gap-3 max-h-64 overflow-y-auto custom-scrollbar">
+  1983→                {pendingUpgrades.map(req => (
+  1984→                  <div key={req.id} className="bg-[#10141f] p-4 rounded-xl border border-orange-500/30">
+  1985→                    <div className="flex justify-between items-start mb-2">
+  1986→                      <div>
+  1987→                        <h4 className="font-bold text-white text-sm">{req.user?.username || 'User'}</h4>
+  1988→                        <p className="text-xs text-gray-400">{req.action} - Rp {formatBalance(req.amount)} koin</p>
+  1989→                      </div>
+  1990→                      <span className="text-[10px] text-orange-400 font-bold bg-orange-500/10 px-2 py-1 rounded">PENDING</span>
+  1991→                    </div>
+  1992→                    <div className="flex gap-2 mt-2">
+  1993→                      <button onClick={() => handleApproveUpgrade(req.id)}
+  1994→                        className="flex-1 bg-green-500/10 text-green-400 border border-green-500/20 p-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-green-500/20 transition-colors">
+  1995→                        ✅ Setujui
+  1996→                      </button>
+  1997→                      <button onClick={() => handleRejectUpgrade(req.id)}
+  1998→                        className="flex-1 bg-red-500/10 text-red-400 border border-red-500/20 p-2 rounded-lg text-xs font-bold cursor-pointer hover:bg-red-500/20 transition-colors">
+  1999→                        ❌ Tolak
+  2000→                      </button>
+
+[showing lines 1-2000 of 2840; use offset=2001 with limit to continue reading]
